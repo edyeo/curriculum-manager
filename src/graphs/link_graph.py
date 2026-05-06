@@ -4,6 +4,7 @@ T2 LINK Graph
 가드레일: source.depth != target.depth 이면 엣지 제거.
 """
 import json
+import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -25,8 +26,8 @@ class LinkState(TypedDict):
 def link_node(state: LinkState) -> dict:
     """링킹 에이전트로 엣지 생성"""
     skill = load_skill("linking_agent_skill.md")
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.3)
-    structured_llm = llm.with_structured_output(EdgeGenerationOutput)
+    llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o"), temperature=0.3)
+    structured_llm = llm.with_structured_output(EdgeGenerationOutput, method="function_calling")
 
     source_nodes = state["source_nodes"]
     target_nodes = state["target_nodes"]

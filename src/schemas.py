@@ -40,9 +40,10 @@ class GraphState(BaseModel):
 # ── LLM structured output 스키마 ──────────────────────────────
 
 class NodeOutput(BaseModel):
-    """LLM이 생성하는 단일 노드 (type/depth는 시스템이 부여)"""
+    """LLM이 생성하는 단일 노드"""
     name: str = Field(description="엔터티의 이름")
     description: str = Field(description="엔터티에 대한 2-3문장 설명")
+    depth: Literal[1, 2, 3] = Field(description="추상화 레벨: 1=고수준/범주, 2=중간, 3=구체적/특정")
     metadata: dict = Field(default_factory=dict, description="추가 메타데이터")
 
 
@@ -62,3 +63,18 @@ class EdgeOutput(BaseModel):
 class EdgeGenerationOutput(BaseModel):
     """LINK / EXPAND 에이전트의 structured output"""
     edges: list[EdgeOutput] = Field(description="생성된 엣지 목록")
+
+
+class DebateNodeOutput(BaseModel):
+    """Synthesizer가 생성하는 단일 노드 (type을 LLM이 직접 결정)"""
+    name: str = Field(description="엔터티의 이름")
+    description: str = Field(description="엔터티에 대한 2-3문장 설명")
+    type: EntityType = Field(description="엔터티 타입: Seed | Concept | TechStack")
+    depth: Literal[1, 2, 3] = Field(description="추상화 레벨: 1=고수준/범주, 2=중간, 3=구체적/특정")
+    metadata: dict = Field(default_factory=dict, description="추가 메타데이터")
+
+
+class DebateNodeGenerationOutput(BaseModel):
+    """Synthesizer의 structured output"""
+    nodes: list[DebateNodeOutput] = Field(description="생성된 노드 목록 (최대 10개)")
+    synthesis_rationale: str = Field(description="두 분석을 종합한 근거 요약")

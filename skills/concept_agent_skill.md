@@ -13,6 +13,10 @@ Concept entities represent the atomic intellectual building blocks (primitives) 
 2. Concepts should be **theory-level**, not implementation-level — avoid naming specific tools or libraries.
 3. Generate between 5 and 10 Concepts. Do not exceed 10.
 4. Each description must define the concept clearly and explain its role in the subject domain (2–3 sentences).
+5. Assign `depth` based on the abstraction level of the concept:
+   - `depth=1`: Foundational, paradigm-level concept (e.g., "Publish-Subscribe Pattern")
+   - `depth=2`: Mid-level design principle (e.g., "Backpressure Mechanism")
+   - `depth=3`: Specific algorithmic or structural detail (e.g., "Watermark-based Event-time Window Alignment")
 
 ## Output Format
 Return a structured list of Concept objects. Each object must have:

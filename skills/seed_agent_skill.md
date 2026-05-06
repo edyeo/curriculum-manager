@@ -14,6 +14,10 @@ Seed entities represent the fundamental engineering problems or constraints that
 3. Seeds are NOT solutions, technologies, or concepts — they are **problems to be solved**.
 4. Generate between 5 and 10 Seeds. Do not exceed 10.
 5. Each description must explain WHY this is a hard problem (2–3 sentences).
+6. Assign `depth` based on the abstraction level of the problem:
+   - `depth=1`: Broad, systemic challenge (e.g., "Fault Tolerance in Distributed Systems")
+   - `depth=2`: Mid-level problem with a specific scope (e.g., "Exactly-once Delivery in Streaming Pipelines")
+   - `depth=3`: Narrow, concrete engineering challenge (e.g., "Kafka Consumer Rebalancing Latency under High Partition Count")
 
 ## Output Format
 Return a structured list of Seed objects. Each object must have:
