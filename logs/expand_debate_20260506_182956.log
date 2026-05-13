@@ -1,0 +1,132 @@
+
+==================== [Critic] ====================
+1) 고립된 노드(연결 없음)
+- Concept: "정확히-한번 처리 의미" — 아무 엣지 없음. 멱등성·체크포인트·트랜잭션 관련 노드와 연결되어야 할 핵심 개념이 격리되어 있음.
+- Concept: "백프레셔와 흐름 제어" — 관련 TechStack/연관 Seed와 연결 없음.
+- Seed: "엔드투엔드 정밀(Exactly-once) 보장", "상태 체크포인팅의 일관성 대 성능 트레이드오프", "역압력(Backpressure) 전파과 안정성", "장애 시 메시지 순서 보존", "복구 목표(RTO)와 데이터 손실 허용치(RPO) 사이의 트레이드오프" — 모두 엣지 없음.
+- TechStack: "Kafka Streams", "AWS Kinesis Data Streams" — 그래프 내 구현/매핑/요구 관계 부재.
+
+2) 타입 불균형(Type imbalances)
+- Concept 노드 다수(심층 개념 집중) vs TechStack 노드 일부는 상세(D3)에만 치우침. 예: TechStack D3(Kafka/Pulsar/Flink)는 풍부하나 D1/D2 수준의 기술(운영 패턴/관리 도구) 연관이 적음.
+- Seed(운영·정책) 노드들이 많은데 그중 상당수가 연결되지 않아(위의 고립 항목) 실무적 시드와 구체 개념/스택 간 불균형 발생.
+- "스키마 레지스트리 및 데이터 계약"가 TechStack으로 분류되어 있으나 기능적으로 Concept·운영적 요소와 중복되어 타입 혼동 유발.
+
+3) 깊이 레벨(Depth) 격차
+- D1의 일반 목표("정확히-한번 처리 의미", "복구 목표(RTO)/RPO")와 이를 구체화하는 D2·D3 연결이 결여됨.
+- D2의 "백프레셔"나 "메시지 순서 보존"은 있으나 D3(구현·테크스택) 예: Flink/Kafka Streams/Kinesis와의 구체적 매핑이 없음.
+- TechStack 측면에서 Kinesis, Kafka Streams는 D3이나 이들을 연결하는 중간(D2) 매핑/패턴 노드가 부재.
+
+4) 놓친 다리(필수 관계 미포착)
+- "정확히-한번 처리 의미"와 "멱등성 및 Exactly‑once Sink 전략", "분산 트랜잭션 및 커밋 프로토콜", "내구성 있는 재생 가능 로그", "커넥터 신뢰성·재시도" 간 직접 연결이 없음.
+- "백프레셔와 흐름 제어"가 "메시지 큐", "분산 로그 기반 브로커", "Apache Flink", "Kafka Streams"와의 관계가 누락.
+- "복구 목표(RTO)/RPO"가 "체크포인팅과 상태 스냅샷", "운영 관측성·SLO·런북"과 직접 연결되어야 할 것으로 보이나 없음.
+- "스키마 레지스트리"가 실제 TechStack(Kafka/Pulsar/Kinesis)과의 구현/통합 관계가 부족.
+
+5) 개념적 맹점(완전히 결여된 도메인)
+- 장애주입/Chaos engineering, 트래픽·용량 계획(샤딩·레벨링), 트랜잭셔널 아웃박스/보상 트랜잭션 패턴, DLQ·보조 로그 운영·정책, 파티셔닝·키 설계(메시지 순서와 직결), 컨테이너/클러스터 관리(K8s) 등 핵심 운영·설계 주제가 전혀 없음.
+- 일관성 모델(CP/AP/세미-스트롱 일관성)·데이터 계보·레イ턴시 SLO 구체화도 부재.
+
+6) 논리적 모순 및 중복
+- 의미 중복: Concept "정확히-한번 처리 의미" vs Seed "엔드투엔드 정밀(Exactly-once) 보장" vs Concept "멱등성 및 Exactly‑once Sink 전략" — 역할 구분 불명확, 중복·범주 겹침.
+- 기술 대 개념 혼용: "스키마 레지스트리 및 데이터 계약"이 TechStack으로 분류되었으나 Graph 내에서는 개념적 요구로 사용되어 역할 모호.
+- 범주 겹침/일괄화: "메시지 큐"와 "분산 로그 기반 브로커"의 관계가 불명확(중복된 책임 서술) — 어느 수준에서 분리·대체되는지 모순적.
+- "분산 트랜잭션 및 커밋 프로토콜"이 Kafka/Pulsar/분산 로그 브로커 모두에 implemented_by로 연결되어 있으나 이들의 실제 트랜잭션 지원 범위 차이가 분명히 반영되지 않아 과도한 일반화·잠재적 불일치가 존재.
+
+==================== [Devil's Advocate] ====================
+§1. Critic에 대한 반론
+- (1) 고립된 노드 지적: Critic의 일부 지적은 타당합니다(예: "정확히-한번 처리 의미"가 실제로 엣지 없음). 다만 모든 고립이 문제는 아닙니다. 몇몇 노드("정확히‑한번 처리 의미", 일부 Seed)는 추상적 목표(Goal)로 의도된 '상위 레벨' 노드여서 직접 구현 노드와의 1:1 엣지 대신 중간층(D2) 패턴을 통해 연결되길 기대한 설계일 수 있습니다. 즉, 비연결이 곧 설계 결핍은 아닙니다.  
+- (2) 타입 불균형 비판: D3가 풍부하고 D1/D2가 적은 현상은 도메인 모델링 전략(구현 중심 vs 개념 중심)의 차이에서 온 것입니다. Critic이 지적한 불균형은 '문제 가능성'이며 재분류 제안은 합리적이지만, 현재 그래프가 “구현→패턴→목표” 계층을 의도했다면 D3 편중은 의도적이라고 볼 수 있습니다.  
+- (3) 중복·모순 지적: Critic(6) 중 일부(예: "메시지 큐" vs "분산 로그 기반 브로커" 중복)은 과도한 일반화 문제를 잘 집어냈습니다. 다만 두 노드는 추상화 레벨(Queue = 메시지 추상, Log Broker = 구현 아키텍처) 차이로 공존 가능하므로 '중복'이라기보다 '레벨 명시 부족'이 핵심입니다.  
+- 요약: Critic은 많은 유효한 문제를 짚었고(특히 연결 누락·역할 혼동), 그러나 일부 지적은 의도된 추상화·계층화 때문에 불필요한 비판일 수 있음을 인정합니다.
+
+§2. Critic이 놓친 맹점
+- 모호한 추상화 레이어 명시 부족: Goal / Mechanism / Implementation(예: 목표: exactly‑once, 메커니즘: 체크포인트/트랜잭션, 구현: Flink/Kafka)을 명시하는 노드가 없어 혼선 유발.
+- 트랜잭션 노드의 개념 혼합: "2PC / Consensus"를 한 노드로 묶음(분산 합의 프로토콜과 원자적 커밋은 다른 책임). 분리 필요(Consensus: 리더 선출·복제; Atomic commit: 외부 싱크와의 일관성).
+- 데이터 보존·리텐션·컴팩션 누락: 로그 보관·TTL·세그먼트 컴팩션이 재생·RPO와 직접 연결되는데 없음.
+- 파티셔닝·키 설계·스케일링 영향: 메시지 순서·스키핑·워크로드 스큐와 직접 연동되는 핵심 설계 요소 부재.
+- 커넥터 수명주기·버전·업그레이드 위험: 커넥터의 호환성·롤링 업그레이드·데이터 마이그레이션 등의 운영 위험이 빠짐.
+- 재생·복구 플랜(Replay Playbook)과 보관 비용 트레이드오프 미표현: 롤백/재처리 절차, 비용/성능 영향, SLO 연계가 없음.
+- 보안의 운영 세부(키 관리, 엔드포인트 인증, 감사 로그 보존 주기) 미흡: 단순 "보안·거버넌스"를 넘어 기술적 실천 항목이 필요.
+- 관측성의 SLI/SLO 구체화 부족: '운영 관측성'이지만 어떤 지표(처리 지연, 재처리율, 오탐률 등)를 SLI로 삼을지 누락.
+- 테스트·검증/Chaos engineering의 구체 노드 부재: 장애주입, 회복성 테스트, 회귀(데이터 정합성) 자동화가 없다.
+- 비용·운영 제약(샤드 한도, 클라우드 쿼터, 스토리지 비용)과 의사결정 노드 부재: RTO/RPO 선택은 비용/용량 한계와 연결돼야 함.
+- 인간·조직적 요소 누락: 런북 접근성, 온콜 책임, 포스트모템 루프 등 운영 주체와 프로세스가 모델화되어 있지 않음.
+
+권고: "추상화 레벨"·"수명주기"·"비용/보관/규모"·"조직/운영" 같은 횡단 노드를 추가하고, 혼합된 개념(예: 2PC vs Consensus, Goal vs Mechanism)을 분리하면 그래프의 정확성·실용성이 크게 향상됩니다.
+
+==================== [Synthesizer] ====================
+Rationale:
+Critic 강조의 '연결 누락'과 Devil's Advocate의 '추상화·수명주기·운영 세부' 지적을 합쳐, 목표‑메커니즘‑구현 레이어를 명시하는 상위 노드와 트랜잭션·리텐션·파티셔닝·커넥터 수명주기 같은 실무적 빈틈을 우선 보강했습니다. 또한 운영에서 즉시 쓰이는 런북·관측성 지표·혼돈 공학 노드를 추가해 이론과 구현 사이의 실행 가능 브릿지를 완성했습니다.
+
+Generated Nodes:
+- [Concept|D1] 추상화 계층: 목표‑메커니즘‑구현 맵: 목표(예: exactly‑once, RTO/RPO), 이를 달성하는 메커니즘(체크포인팅, 트랜잭션, 멱등성)과 구체적 구현(예: Flink, Kafka, RocksDB)을 명시적으로 연결하는 상위 수준 추상화 노드입니다. 이 노드는 그래프의 레벨 혼선(Goal vs Mechanism vs Implementation)을 해소하고 설계 의사결정의 근거를 제공하기 위해 필요합니다.
+- [Concept|D2] 트랜잭션 패턴 분리: 합의(Consensus) vs 원자적 커밋(Atomic Commit): 분산 합의(Consensus, 복제·리더 선출)와 외부 싱크와의 원자적 커밋(2PC/아웃박스/보상 트랜잭션)을 구분하는 패턴 노드입니다. 서로 다른 책임과 제약을 분리해 각 브로커·커넥터가 지원하는 보장 범위를 명확히 하도록 돕습니다.
+- [Seed|D2] 로그 보존·TTL·컴팩션 정책(리텐션 및 재생 비용): 분산 로그의 보존 기간, 세그먼트 컴팩션, TTL, 보관 비용과 재생(Replay) 가능성 사이의 트레이드오프를 다루는 운영적 제약 노드입니다. RPO·재생 시나리오·비용 산정과 직접 연결되어 보관 정책 결정과 복구 전략 수립을 돕습니다.
+- [Seed|D2] 파티셔닝·키 설계 및 스케일링 전략: 메시지 순서 보존, 파티션 스키유(Hot shard), 스케일 아웃/샤딩 결정과 키 선택이 시스템 동작에 미치는 영향을 다루는 설계 노드입니다. 올바른 파티셔닝은 순서 보존, 처리 지연, 리밸런스 및 재처리 비용과 직접 연관되므로 명시적 모델이 필요합니다.
+- [Concept|D2] 커넥터 수명주기·호환성·롤링 업그레이드 패턴: 커넥터의 버전 호환성, 마이그레이션, 롤링 업그레이드, 드레인/리-플레이 동작 같은 수명주기 문제를 다루는 운영/패턴 노드입니다. 커넥터 신뢰성(재시도·보상)과 별개로 업그레이드·호환성 리스크를 모델링해 운영 위험을 줄입니다.
+- [Seed|D3] 재생·복구 플레이북(Replay & Recovery Runbooks): 구체적 복구 절차(장애 유형별 체크리스트, 안전한 재생 순서, 스냅샷과 로그 조합 방법, 데이터 검증 절차)를 담은 실행 가능한 런북 노드입니다. 자동화 가능한 스크립트/검증 단계와 SLO 기반 의사결정 포인트를 포함해 실제 운영에서의 재처리 리스크를 낮춥니다.
+- [Seed|D2] 관측성 SLI·SLO 세트(스트리밍 특화 지표): 스트리밍 시스템 전용 SLI(처리 지연, 재처리율, 체크포인트 간격 성공률, 오프셋 차이 등)와 이들을 SLO로 전환하는 기준을 규정하는 운영 노드입니다. RTO/RPO·런북·알림 정책과 직접 연결되어 복구 의사결정의 근거로 사용됩니다.
+- [Concept|D2] 혼돈 공학·장애주입 실습 패턴: 의도적 장애주입(네트워크 분할, 브로커 지연, 스토리지 결함 등)과 회복성 테스트 패턴을 정형화한 노드입니다. 정기적 복구 연습을 통해 체크포인트·재생·백프레셔 동작 등을 검증하고, 자동화된 회귀 테스트로 운영 신뢰도를 높입니다.
+
+
+==================== [Linker] ====================
+Generated Edges:
+- 추상화 계층: 목표‑메커니즘‑구현 맵 --[RelationType.requires]--> 결함 모델과 복구 목표
+  Logic: The abstraction layer must take the system's fault model and recovery goals (RTO/RPO) as inputs to map high‑level goals to appropriate mechanisms; without these goals the goal→mechanism→implementation mapping cannot be constructed.
+- 추상화 계층: 목표‑메커니즘‑구현 맵 --[RelationType.requires]--> 정확히-한번 처리 의미
+  Logic: Exactly‑once processing is a canonical high‑level goal that the abstraction must relate to concrete mechanisms and implementations, so the map requires a formal definition of the 'exactly‑once' goal.
+- 추상화 계층: 목표‑메커니즘‑구현 맵 --[RelationType.requires]--> 분산 트랜잭션 및 커밋 프로토콜 (2PC / Consensus)
+  Logic: To connect goals to implementations the abstraction needs the semantics and constraints of distributed transaction/commit protocols, because these protocols define the mechanism space for strong consistency guarantees.
+- 추상화 계층: 목표‑메커니즘‑구현 맵 --[RelationType.requires]--> 체크포인팅 ↔ 상태 백엔드 매핑 (Flink/RocksDB/스토리지)
+  Logic: Mapping checkpointing goals to concrete backends and tradeoffs is part of the goal→mechanism→implementation mapping, so the abstraction requires the checkpoint↔state‑backend integration details.
+- 추상화 계층: 목표‑메커니즘‑구현 맵 --[RelationType.requires]--> 내구적 추가형 로그 ↔ 브로커 구현 매핑
+  Logic: Durable replayable log characteristics are a core implementation class the abstraction must reference, so the mapping requires the broker↔log implementation comparisons to relate goals to concrete broker choices.
+- 트랜잭션 패턴 분리: 합의(Consensus) vs 원자적 커밋(Atomic Commit) --[RelationType.implemented_by]--> 분산 트랜잭션 및 커밋 프로토콜 (2PC / Consensus)
+  Logic: The pattern that separates consensus (replica/leader) concerns from atomic commit to external sinks is realized in practice by distributed transaction and commit protocols (e.g., Paxos/Raft/2PC), so the abstract pattern is implemented by these protocols.
+- 트랜잭션 패턴 분리: 합의(Consensus) vs 원자적 커밋(Atomic Commit) --[RelationType.requires]--> 멱등성 및 Exactly‑once Sink 전략
+  Logic: Separating consensus from sink commit implies concrete sink strategies (idempotence, transactional sinks, outbox) are required to realize external‑side atomicity, so the pattern depends on exactly‑once sink strategies.
+- 트랜잭션 패턴 분리: 합의(Consensus) vs 원자적 커밋(Atomic Commit) --[RelationType.requires]--> 커넥터 신뢰성·재시도 및 보상 전략
+  Logic: Clear separation of transaction responsibilities requires connector reliability and retry/compensation patterns to be defined, because connectors are the boundary where atomic commit and side‑effects interact.
+- 로그 보존·TTL·컴팩션 정책(리텐션 및 재생 비용) --[RelationType.implemented_by]--> Apache Kafka
+  Logic: Retention, TTL and compaction policies are concrete features implemented by distributed log brokers such as Kafka, so the abstract log retention/compaction concerns are implemented by Kafka's topic/segment management.
+- 로그 보존·TTL·컴팩션 정책(리텐션 및 재생 비용) --[RelationType.implemented_by]--> Apache Pulsar
+  Logic: Pulsar/BookKeeper provide their own retention and compaction/archival semantics, so log retention and replay cost tradeoffs are realized through Pulsar's implementation choices as well.
+- 로그 보존·TTL·컴팩션 정책(리텐션 및 재생 비용) --[RelationType.requires]--> 복구 목표(RTO)와 데이터 손실 허용치(RPO) 사이의 트레이드오프
+  Logic: Retention and compaction policies directly affect how much historical data is available for recovery, so log policy decisions are required inputs to any RTO/RPO trade‑off analysis.
+- 로그 보존·TTL·컴팩션 정책(리텐션 및 재생 비용) --[RelationType.requires]--> 재생·복구 플레이북(Replay & Recovery Runbooks)
+  Logic: Replay and recovery runbooks depend on how long logs are retained and how compaction transforms stored records, so operational playbooks require the log retention/compaction policy to be defined.
+- 파티셔닝·키 설계 및 스케일링 전략 --[RelationType.requires]--> 장애 시 메시지 순서 보존
+  Logic: Partitioning and key design are fundamental to preserving message order under failure and replays, so partition strategy design requires explicit consideration of message‑order preservation constraints.
+- 파티셔닝·키 설계 및 스케일링 전략 --[RelationType.requires]--> 오퍼레이터 상태 이주 (Stateful Operator Migration)
+  Logic: Scaling and rebalancing decisions directly drive stateful operator migration concerns, so partitioning strategies require operator migration mechanisms to be specified.
+- 파티셔닝·키 설계 및 스케일링 전략 --[RelationType.implemented_by]--> Apache Kafka
+  Logic: Broker implementations like Kafka provide partitioning, key‑to‑partition mapping and rebalancing semantics, so partitioning strategies are realized via the broker's partition implementation.
+- 파티셔닝·키 설계 및 스케일링 전략 --[RelationType.requires]--> 스키마 레지스트리 및 데이터 계약
+  Logic: Key and partition design interacts with schema evolution and data contracts (e.g., which fields are keys), therefore partitioning strategy requires schema/contract constraints to be considered.
+- 커넥터 수명주기·호환성·롤링 업그레이드 패턴 --[RelationType.requires]--> 커넥터 신뢰성·재시도 및 보상 전략
+  Logic: Connector lifecycle and rolling upgrade patterns must be informed by connector reliability, retry and compensation strategies because upgrades interact with failure/retry semantics at the connector boundary.
+- 커넥터 수명주기·호환성·롤링 업그레이드 패턴 --[RelationType.requires]--> 연결기/외부 시스템과의 부작용 있는 재시도 문제
+  Logic: Upgrade and compatibility patterns need to address side‑effects caused by retries to external systems, so lifecycle plans require an understanding of external retry/side‑effect failure modes.
+- 커넥터 수명주기·호환성·롤링 업그레이드 패턴 --[RelationType.requires]--> 재생·복구 플레이북(Replay & Recovery Runbooks)
+  Logic: Rolling upgrades and connector migrations must be accompanied by recovery and replay runbooks (safe drain/replay steps), hence lifecycle patterns require concrete runbook procedures.
+- 커넥터 수명주기·호환성·롤링 업그레이드 패턴 --[RelationType.requires]--> 스키마 레지스트리 및 데이터 계약
+  Logic: Compatibility and migration during upgrades depend on schema evolution policies, so connector lifecycle strategies require schema registry and data contract rules to ensure safe transitions.
+- 재생·복구 플레이북(Replay & Recovery Runbooks) --[RelationType.requires]--> 관측성 SLI·SLO 세트(스트리밍 특화 지표)
+  Logic: Replay and recovery runbooks rely on SLIs/SLOs and alerting thresholds as decision points (when to automate vs manual), so runbooks require a defined SLI/SLO set to be actionable.
+- 재생·복구 플레이북(Replay & Recovery Runbooks) --[RelationType.requires]--> 로그 보존·TTL·컴팩션 정책(리텐션 및 재생 비용)
+  Logic: The feasibility and safe window for replay depend on log retention and compaction policies, therefore runbooks require explicit retention/compaction parameters to plan recovery steps.
+- 재생·복구 플레이북(Replay & Recovery Runbooks) --[RelationType.requires]--> 체크포인팅과 상태 스냅샷
+  Logic: Runbooks for recovery must specify how checkpoints and state snapshots are used during restore, so replay procedures require clear checkpointing and snapshot strategies.
+- 관측성 SLI·SLO 세트(스트리밍 특화 지표) --[RelationType.implemented_by]--> 운영 관측성·SLO·런북 (Metrics, Tracing, Runbooks)
+  Logic: A defined SLI/SLO set is realized through concrete observability systems (metrics, tracing, alerting and runbooks), so the SLI/SLO definitions are implemented by the observability and runbook infrastructure.
+- 관측성 SLI·SLO 세트(스트리밍 특화 지표) --[RelationType.requires]--> 장애 감지의 민감도/오탐율 균형
+  Logic: Choosing SLI thresholds and alerting behavior depends on the acceptable sensitivity/false‑positive tradeoffs for failure detection, so the SLI/SLO set requires the detection sensitivity analysis.
+- 관측성 SLI·SLO 세트(스트리밍 특화 지표) --[RelationType.requires]--> 결함 모델과 복구 목표
+  Logic: SLIs and SLOs must be grounded in the system's fault model and recovery objectives (RTO/RPO) to be meaningful, so the SLI/SLO set requires the fault model and recovery goals as inputs.
+- 혼돈 공학·장애주입 실습 패턴 --[RelationType.requires]--> 네트워크 분할과 스플릿 브레인 복구
+  Logic: Chaos engineering experiments should include network partition and split‑brain scenarios to validate recovery decisions, so the chaos patterns require explicit partition/split‑brain failure models to exercise.
+- 혼돈 공학·장애주입 실습 패턴 --[RelationType.requires]--> 재생·복구 플레이북(Replay & Recovery Runbooks)
+  Logic: Regular fault‑injection exercises are used to validate replay and recovery runbooks, therefore chaos practices require concrete runbooks to verify correctness and safety of automated recovery.
+- 혼돈 공학·장애주입 실습 패턴 --[RelationType.requires]--> 운영 관측성·SLO·런북 (Metrics, Tracing, Runbooks)
+  Logic: Chaos experiments depend on observability (metrics/tracing/alerts) to measure impact and detect regressions, so chaos patterns require the operational observability and runbook infrastructure.
+
