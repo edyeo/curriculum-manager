@@ -1,7 +1,12 @@
 from enum import Enum
 from typing import Literal
 from uuid import uuid4
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 
 
 class EntityType(str, Enum):
@@ -23,6 +28,8 @@ class Entity(BaseModel):
     name: str
     description: str
     metadata: dict = Field(default_factory=dict)
+    created_at: str = Field(default_factory=_now_iso)
+    created_by_trigger: str = Field(default="unknown")
 
 
 class Edge(BaseModel):
@@ -30,6 +37,8 @@ class Edge(BaseModel):
     target_id: str
     relation_type: RelationType
     logic_basis: str
+    created_at: str = Field(default_factory=_now_iso)
+    created_by_trigger: str = Field(default="unknown")
 
 
 class GraphState(BaseModel):

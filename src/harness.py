@@ -2,7 +2,7 @@
 PassIterationHarness: 세 트리거의 진입점 디스패처
 """
 from src.schemas import EntityType, GraphState
-from src.state_manager import load_nodes, load_edges, save_nodes, save_edges, load_state
+from src.state_manager import load_nodes, load_edges, save_nodes, save_edges, load_state, snapshot_work
 from src.graphs.draft_graph import build_draft_graph
 from src.graphs.link_graph import build_link_graph
 from src.graphs.expand_graph import build_expand_graph
@@ -24,6 +24,7 @@ class PassIterationHarness:
 
         save_nodes(self.nodes)
         save_edges(self.edges)   # edges.json도 빈 상태로 초기화
+        snapshot_work(self.nodes, self.edges, trigger="T1_DRAFT", subject=subject)
 
         print(f"✅ DRAFT 완료: 총 {len(self.nodes)}개 노드 (edges 초기화)")
 
@@ -59,6 +60,10 @@ class PassIterationHarness:
 
         self.edges.extend(result["new_edges"])
         save_edges(self.edges)   # edges.json만 업데이트
+        snapshot_work(
+            self.nodes, self.edges,
+            trigger=f"T2_LINK_{source_type}_{target_type}",
+        )
 
         print(f"✅ LINK 완료: {len(result['new_edges'])}개 엣지 추가 (총 {len(self.edges)}개)")
 
@@ -70,6 +75,14 @@ class PassIterationHarness:
             print("⚠️  노드가 없습니다. DRAFT를 먼저 실행하세요.")
             return
 
+        import datetime
+        import os
+        
+        os.makedirs("logs", exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file_path = f"logs/expand_debate_{timestamp}.log"
+        print(f"  [Log] 토론 과정이 {log_file_path} 에 저장됩니다.")
+
         graph = build_expand_graph()
         result = graph.invoke(
             {
@@ -77,6 +90,7 @@ class PassIterationHarness:
                 "existing_edges": self.edges,
                 "new_nodes": [],
                 "new_edges": [],
+                "log_file_path": log_file_path,
             }
         )
 
@@ -85,6 +99,7 @@ class PassIterationHarness:
 
         save_nodes(self.nodes)   # 새 Seed 노드 포함
         save_edges(self.edges)   # 새 엣지 포함
+        snapshot_work(self.nodes, self.edges, trigger="T3_EXPAND")
 
         print(
             f"✅ EXPAND 완료: 새 Seed {len(result['new_nodes'])}개, "

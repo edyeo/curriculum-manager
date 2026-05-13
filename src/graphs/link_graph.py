@@ -72,6 +72,7 @@ def link_node(state: LinkState) -> dict:
             target_id=e.target_id,
             relation_type=e.relation_type,
             logic_basis=e.logic_basis,
+            created_by_trigger="T2_LINK",
         )
         for e in result.edges
         if e.source_id in valid_source_ids and e.target_id in valid_target_ids

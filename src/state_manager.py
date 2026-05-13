@@ -1,10 +1,12 @@
 import json
+import datetime
 from pathlib import Path
 from src.schemas import Entity, Edge, GraphState
 
 NODES_FILE = Path("nodes.json")
 EDGES_FILE = Path("edges.json")
 SKILLS_DIR = Path("skills")
+WORK_DIR = Path("_work")
 
 
 # ── Nodes ──────────────────────────────────────────────────────
@@ -64,3 +66,53 @@ def load_skill(skill_filename: str) -> str:
     if not skill_path.exists():
         raise FileNotFoundError(f"Skill file not found: {skill_path}")
     return skill_path.read_text(encoding="utf-8")
+
+
+# ── Work Snapshots ─────────────────────────────────────────────
+
+def snapshot_work(
+    nodes: list[Entity],
+    edges: list[Edge],
+    trigger: str,
+    subject: str = "",
+) -> Path:
+    """
+    _work/<timestamp>/ 하위에 nodes.json + edges.json + manifest.json을
+    스냅샷으로 저장한다. 각 실행 결과가 타임스탬프 기반으로 버전관리된다.
+    """
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    snapshot_dir = WORK_DIR / timestamp
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+    # nodes.json
+    nodes_path = snapshot_dir / "nodes.json"
+    with open(nodes_path, "w", encoding="utf-8") as f:
+        json.dump([n.model_dump() for n in nodes], f, ensure_ascii=False, indent=2)
+
+    # edges.json
+    edges_path = snapshot_dir / "edges.json"
+    with open(edges_path, "w", encoding="utf-8") as f:
+        json.dump([e.model_dump() for e in edges], f, ensure_ascii=False, indent=2)
+
+    # manifest.json — 메타 정보
+    from collections import Counter
+    node_type_counts = Counter(n.type.value for n in nodes)
+    rel_type_counts = Counter(e.relation_type.value for e in edges)
+
+    manifest = {
+        "timestamp": timestamp,
+        "trigger": trigger,
+        "subject": subject,
+        "summary": {
+            "total_nodes": len(nodes),
+            "nodes_by_type": dict(node_type_counts),
+            "total_edges": len(edges),
+            "edges_by_relation": dict(rel_type_counts),
+        },
+    }
+    manifest_path = snapshot_dir / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    print(f"  📁 스냅샷 저장: _work/{timestamp}/ (nodes={len(nodes)}, edges={len(edges)})")
+    return snapshot_dir

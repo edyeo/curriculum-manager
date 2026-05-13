@@ -1,0 +1,15 @@
+{
+  "timestamp": "20260513_184343",
+  "trigger": "T1_DRAFT",
+  "subject": "데이터 엔지니어링",
+  "summary": {
+    "total_nodes": 26,
+    "nodes_by_type": {
+      "Concept": 8,
+      "Seed": 9,
+      "TechStack": 9
+    },
+    "total_edges": 0,
+    "edges_by_relation": {}
+  }
+}

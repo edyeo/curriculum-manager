@@ -54,6 +54,7 @@ def _make_agent_node(entity_type: EntityType, skill_file: str):
                 name=node.name,
                 description=node.description,
                 metadata=node.metadata,
+                created_by_trigger="T1_DRAFT",
             )
             for node in result.nodes[:MAX_NODES_PER_TYPE]
         ]

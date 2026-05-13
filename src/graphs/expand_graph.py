@@ -32,6 +32,7 @@ class ExpandState(TypedDict):
     devils_analysis: str        # Devil's Advocate의 텍스트 분석
     new_nodes: list[Entity]     # Synthesizer가 생성한 새 노드
     new_edges: list[Edge]       # Linker가 생성한 새 엣지
+    log_file_path: str          # 토론 로그가 저장될 파일 경로
 
 
 def _format_graph_summary(nodes: list[Entity], edges: list[Edge]) -> str:
@@ -82,6 +83,13 @@ def critic_node(state: ExpandState) -> dict:
 
     response = llm.invoke(messages)
     print("  [Critic] 분석 완료")
+    
+    log_path = state.get("log_file_path")
+    if log_path:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*20} [Critic] {'='*20}\n")
+            f.write(response.content + "\n")
+            
     return {"critic_analysis": response.content}
 
 
@@ -109,6 +117,13 @@ def devils_advocate_node(state: ExpandState) -> dict:
 
     response = llm.invoke(messages)
     print("  [Devil's Advocate] 반론 및 추가 맹점 완료")
+    
+    log_path = state.get("log_file_path")
+    if log_path:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*20} [Devil's Advocate] {'='*20}\n")
+            f.write(response.content + "\n")
+            
     return {"devils_analysis": response.content}
 
 
@@ -148,6 +163,7 @@ def synthesize_nodes_node(state: ExpandState) -> dict:
             name=node.name,
             description=node.description,
             metadata={**node.metadata, "source": "expand_debate"},
+            created_by_trigger="T3_EXPAND_SYNTHESIZER",
         )
         for node in result.nodes[:MAX_NEW_NODES]
     ]
@@ -160,6 +176,17 @@ def synthesize_nodes_node(state: ExpandState) -> dict:
 
     print(f"  [Synthesizer] 새 노드 {len(new_nodes)}개 생성: {summary_str}")
     print(f"  [Rationale] {result.synthesis_rationale[:100]}...")
+    
+    log_path = state.get("log_file_path")
+    if log_path:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*20} [Synthesizer] {'='*20}\n")
+            f.write(f"Rationale:\n{result.synthesis_rationale}\n\n")
+            f.write("Generated Nodes:\n")
+            for n in new_nodes:
+                f.write(f"- [{n.type.value}|D{n.depth}] {n.name}: {n.description}\n")
+            f.write("\n")
+            
     return {"new_nodes": new_nodes}
 
 
@@ -214,6 +241,7 @@ def synthesize_edges_node(state: ExpandState) -> dict:
             target_id=e.target_id,
             relation_type=e.relation_type,
             logic_basis=e.logic_basis,
+            created_by_trigger="T3_EXPAND_LINKER",
         )
         for e in result.edges
         if (e.source_id in valid_ids and e.target_id in valid_ids)
@@ -222,6 +250,19 @@ def synthesize_edges_node(state: ExpandState) -> dict:
     ]
 
     print(f"  [Linker] 새 엣지 {len(edges)}개 생성")
+    
+    log_path = state.get("log_file_path")
+    if log_path:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*20} [Linker] {'='*20}\n")
+            f.write("Generated Edges:\n")
+            node_names = {n.id: n.name for n in all_nodes}
+            for e in edges:
+                src_name = node_names.get(e.source_id, e.source_id[:8])
+                tgt_name = node_names.get(e.target_id, e.target_id[:8])
+                f.write(f"- {src_name} --[{e.relation_type}]--> {tgt_name}\n  Logic: {e.logic_basis}\n")
+            f.write("\n")
+            
     return {"new_edges": edges}
 
 

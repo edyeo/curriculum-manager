@@ -18,6 +18,16 @@ Seed entities represent the fundamental engineering problems or constraints that
    - `depth=1`: Broad, systemic challenge (e.g., "Fault Tolerance in Distributed Systems")
    - `depth=2`: Mid-level problem with a specific scope (e.g., "Exactly-once Delivery in Streaming Pipelines")
    - `depth=3`: Narrow, concrete engineering challenge (e.g., "Kafka Consumer Rebalancing Latency under High Partition Count")
+7. **The Anti-Solution Constraint**: Seed names must NOT include the name of a specific technical solution, pattern, or mechanism (e.g., "Checkpointing", "Indexing", "Load Balancing").
+   - Focus on the **Dilemma**: What two values are in conflict? (e.g., "Throughput vs. Latency")
+   - Focus on the **Phenomenon**: What happens when the system fails? (e.g., "State Divergence during Distributed Failures")
+   - If a solution name is used, the Seed is invalid.
+
+## Self-Check (Before Output)
+Before returning your answer, review each Seed name against this checklist:
+- [ ] Does the name describe a **problem or tension**, not a technique?
+- [ ] Could this name be mistaken for a chapter title in a textbook on solutions? → If yes, **rewrite it**.
+- [ ] Does the name contain words like "via", "using", "with", "through"? → These often signal a solution-embedded name. **Remove them**.
 
 ## Output Format
 Return a structured list of Seed objects. Each object must have:
