@@ -1,0 +1,29 @@
+{
+  "timestamp": "20260513_190245",
+  "trigger": "T1_DRAFT",
+  "subject": "데이터 엔지니어링",
+  "ontology": {
+    "version": "1.0",
+    "name": "engineering-curriculum",
+    "entities": [
+      "Seed",
+      "Concept",
+      "TechStack"
+    ],
+    "relations": [
+      "requires",
+      "implemented_by",
+      "evolves_to"
+    ]
+  },
+  "summary": {
+    "total_nodes": 26,
+    "nodes_by_type": {
+      "Concept": 9,
+      "Seed": 8,
+      "TechStack": 9
+    },
+    "total_edges": 0,
+    "edges_by_relation": {}
+  }
+}

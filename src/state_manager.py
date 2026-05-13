@@ -2,6 +2,7 @@ import json
 import datetime
 from pathlib import Path
 from src.schemas import Entity, Edge, GraphState
+from src.ontology_loader import get_ontology
 
 NODES_FILE = Path("nodes.json")
 EDGES_FILE = Path("edges.json")
@@ -103,6 +104,7 @@ def snapshot_work(
         "timestamp": timestamp,
         "trigger": trigger,
         "subject": subject,
+        "ontology": get_ontology().to_manifest_dict(),
         "summary": {
             "total_nodes": len(nodes),
             "nodes_by_type": dict(node_type_counts),

@@ -14,6 +14,7 @@ from typing_extensions import TypedDict
 
 from src.schemas import Entity, EntityType, NodeGenerationOutput
 from src.state_manager import load_skill
+from src.ontology_loader import get_ontology
 
 MAX_NODES_PER_TYPE = 10
 
@@ -31,8 +32,13 @@ def _make_agent_node(entity_type: EntityType, skill_file: str):
         llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o"), temperature=0.7)
         structured_llm = llm.with_structured_output(NodeGenerationOutput, method="function_calling")
 
+        # Seed 에이전트에만 ontology constraint 블록 추가 주입
+        ontology_block = ""
+        if entity_type == EntityType.Seed:
+            ontology_block = "\n\n" + get_ontology().get_entity_prompt_block("Seed")
+
         messages = [
-            SystemMessage(content=skill),
+            SystemMessage(content=skill + ontology_block),
             HumanMessage(
                 content=(
                     f"주제: {state['subject']}\n\n"

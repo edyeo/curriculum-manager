@@ -1,0 +1,56 @@
+version: "1.0"
+name: "engineering-curriculum"
+description: "공학 커리큘럼 생성을 위한 지식 그래프 온톨로지"
+
+# ── Entity 정의 ──────────────────────────────────────────────────
+entities:
+  Seed:
+    description: |
+      해결되지 않은 공학적 문제 공간.
+      아직 완전히 풀리지 않았거나, 본질적으로 트레이드오프가 내재된 도전 과제.
+    depth_range: [1, 3]
+    constraints:
+      anti_solution:
+        enabled: true
+        rule: |
+          이름에 특정 기술적 해결책·패턴·메커니즘의 명칭을 포함하면 안 된다.
+          (예: "Checkpointing", "Indexing", "Load Balancing" 금지)
+        focus:
+          - "딜레마: 두 가지 가치가 충돌하는 지점 (예: Throughput vs. Latency)"
+          - "현상: 시스템이 실패할 때 무슨 일이 일어나는가 (예: State Divergence during Distributed Failures)"
+        naming_patterns:
+          - "{값1} vs. {값2} Tradeoff"
+          - "{현상} under {조건}"
+          - "{속성} {Collapse|Divergence|Amplification} in {컨텍스트}"
+
+  Concept:
+    description: |
+      추상적 개념, 설계 원칙, 또는 아키텍처 패턴.
+      특정 기술 구현이 아닌, 여러 구현에 걸쳐 적용될 수 있는 일반 원리.
+    depth_range: [1, 3]
+
+  TechStack:
+    description: |
+      구체적인 기술, 도구, 또는 구현체.
+      실제로 사용·배포 가능한 소프트웨어·프레임워크·라이브러리.
+    depth_range: [2, 3]
+
+# ── Relation 정의 ────────────────────────────────────────────────
+relations:
+  requires:
+    description: "A를 이해하거나 해결하려면 B가 선행되어야 한다."
+    valid_pairs:
+      - [Seed, Concept]
+      - [Concept, Concept]
+      - [TechStack, Concept]
+
+  implemented_by:
+    description: "추상적 개념 A는 구체적 기술 B로 구현된다."
+    valid_pairs:
+      - [Concept, TechStack]
+
+  evolves_to:
+    description: "A는 B로 심화·발전되거나, A를 해결하면 B 문제가 드러난다."
+    valid_pairs:
+      - [Seed, Seed]
+      - [Concept, Concept]
