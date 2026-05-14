@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  # PostgreSQL: 세 가지 DB 저장소
+  postgres:
+    image: postgres:16-alpine
+    container_name: curriculum-postgres
+    environment:
+      POSTGRES_USER: curriculum_user
+      POSTGRES_PASSWORD: curriculum_password
+      POSTGRES_DB: curriculum_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # DB 초기화 스크립트
+      - ./db/schemas/01_knowledge_graph.sql:/docker-entrypoint-initdb.d/01_knowledge_graph.sql
+      - ./db/schemas/02_question_bank.sql:/docker-entrypoint-initdb.d/02_question_bank.sql
+      - ./db/schemas/03_researcher_db.sql:/docker-entrypoint-initdb.d/03_researcher_db.sql
+      # 데이터 영속성
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curriculum_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - curriculum-network
+
+  # (선택) Redis: 향후 캐싱/세션 관리용
+  redis:
+    image: redis:7-alpine
+    container_name: curriculum-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - curriculum-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  curriculum-network:
+    driver: bridge
