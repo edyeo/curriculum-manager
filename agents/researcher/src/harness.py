@@ -1,102 +1,34 @@
 """
-Researcher Agent
-주어진 키워드를 검색하고 조사 결과를 정리하여 knowledge graph를 강화한다.
+ResearcherHarness: Entity 강화를 위한 자동 키워드 추출 및 조사
 """
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from typing import Optional, List
-import os
-import json
-from datetime import datetime
-
 from shared.db_client import get_db_client
+from agents.researcher.src.graphs.research_graph import build_research_graph
 
 
-class Researcher:
-    """
-    Researcher: 키워드 기반 조사 및 결과 저장
-    (현재는 시뮬레이션, 향후 실제 웹 스크래핑 통합)
-    """
-
+class ResearcherHarness:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0.7,
-            api_key=os.getenv("OPENAI_API_KEY")
-        )
-        _, _, res_db = get_db_client()
-        self.res_db = res_db
+        _, _, self.res_db = get_db_client()
 
-    def research(
-        self,
-        entity_id: str,
-        keywords: List[str] = None,
-        sources: List[str] = None
-    ) -> dict:
+    def trigger_research(self, entity_id: str) -> None:
         """
-        주어진 entity에 대해 조사 수행
+        Entity 분석 → 키워드 추출 → 웹 검색 → 요약 → 저장
 
         Args:
-            entity_id: Entity ID
-            keywords: 검색 키워드 목록
-            sources: 검색 대상 ('blog', 'linkedin', 'github', 'paper')
-
-        Returns:
-            조사 결과 리스트
+            entity_id: 강화할 Entity ID
         """
-        if sources is None:
-            sources = ["blog", "github"]
+        print(f"\n🔬 [RESEARCH] Entity ID: {entity_id}")
 
-        if keywords is None:
-            keywords = ["python", "programming"]
-
-        results = []
-
-        system_prompt = """당신은 리서치 어시스턴트입니다.
-주어진 키워드로 찾은 관련 자료를 요약하여 제시하세요.
-
-각 결과는 다음 형식으로 작성하세요:
-- 제목: 간결한 제목
-- 요약: 2-3줄의 요약
-- 핵심 포인트: 3가지 주요 내용"""
-
-        for keyword in keywords:
-            for source in sources:
-                # 시뮬레이션: LLM으로 가상의 조사 결과 생성
-                user_message = f"""
-키워드: {keyword}
-출처: {source}
-
-위 키워드와 출처를 바탕으로 조사 결과를 작성해주세요.
-(실제 웹 검색 결과를 시뮬레이션하는 가상의 정보)"""
-
-                response = self.llm.invoke([
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=user_message)
-                ])
-
-                # DB에 저장
-                try:
-                    result = self.res_db.create_research_result(
-                        entity_id=entity_id,
-                        keyword=keyword,
-                        source=source,
-                        title=f"{keyword} - {source}",
-                        summary=response.content[:300],
-                        full_content=response.content,
-                        metadata={"timestamp": datetime.now().isoformat()}
-                    )
-                    results.append(result)
-                except Exception as e:
-                    print(f"Error saving research result: {e}")
-
-        return {
+        graph = build_research_graph()
+        result = graph.invoke({
             "entity_id": entity_id,
-            "keywords": keywords,
-            "sources": sources,
-            "results_count": len(results),
-            "results": results
-        }
+            "entity": None,
+            "keywords": [],
+            "search_results": [],
+            "saved_results": []
+        })
+
+        saved_count = len(result.get("saved_results", []))
+        print(f"✅ RESEARCH 완료: {saved_count}개 결과 저장")
 
     def get_summary(self, entity_id: str) -> dict:
         """Entity의 조사 요약 반환"""
@@ -106,13 +38,15 @@ class Researcher:
         self,
         entity_id: str = None,
         keyword: str = None,
-        source: str = None
+        source: str = None,
+        limit: int = 100
     ) -> dict:
         """조사 결과 조회"""
         results = self.res_db.query_research_results(
             entity_id=entity_id,
             keyword=keyword,
-            source=source
+            source=source,
+            limit=limit
         )
         return {
             "entity_id": entity_id,
@@ -122,14 +56,19 @@ class Researcher:
             "results": results
         }
 
+    def show_entity_research(self, entity_id: str) -> None:
+        """Entity의 조사 결과 표시"""
+        summary = self.get_summary(entity_id)
 
-# 싱글턴 인스턴스
-_researcher: Optional[Researcher] = None
+        print(f"\n📊 [RESEARCH 요약] Entity: {entity_id}")
+        print(f"  총 결과: {summary.get('total_results', 0)}개")
+        print(f"  조사 키워드: {summary.get('keyword_count', 0)}개")
+        print(f"  마지막 업데이트: {summary.get('last_updated', 'N/A')}")
 
-
-def get_researcher() -> Researcher:
-    """Researcher 인스턴스 반환"""
-    global _researcher
-    if _researcher is None:
-        _researcher = Researcher()
-    return _researcher
+        if summary.get("total_results", 0) > 0:
+            print(f"\n  출처별 분포:")
+            for source in ["blog_count", "github_count", "paper_count", "linkedin_count"]:
+                count = summary.get(source, 0)
+                source_name = source.replace("_count", "").upper()
+                if count > 0:
+                    print(f"    {source_name}: {count}개")
