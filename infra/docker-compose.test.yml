@@ -1,0 +1,75 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: curriculum-postgres-test
+    environment:
+      POSTGRES_DB: curriculum_db
+      POSTGRES_USER: curriculum_user
+      POSTGRES_PASSWORD: curriculum_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schemas/:/docker-entrypoint-initdb.d/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curriculum_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: curriculum-redis-test
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  curriculum-manager:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: curriculum-manager
+    container_name: curriculum-manager-test
+    environment:
+      DB_TYPE: file
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: curriculum_db
+      DB_USER: curriculum_user
+      DB_PASSWORD: curriculum_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
+      LOG_LEVEL: DEBUG
+      PYTHONPATH: /app
+    ports:
+      - "8010:8001"
+    depends_on:
+      - redis
+    volumes:
+      - ../agents:/app/agents
+      - ../shared:/app/shared
+      - ../apps:/app/apps
+      - ../nodes.json:/app/nodes.json
+      - ../edges.json:/app/edges.json
+    command: python /app/apps/curriculum_manager/main.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
