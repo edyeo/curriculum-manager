@@ -271,36 +271,64 @@ def get_db_client(
     Factory function to get database client implementations.
 
     Args:
-        db_type: 'postgres' or 'neo4j' (default from env var DB_TYPE)
+        db_type: 'file', 'postgres' or 'neo4j' (default from env var DB_TYPE)
         config: Connection configuration dict
 
     Returns:
         Tuple of (KnowledgeGraphDB, QuestionBankDB, ResearcherDB)
 
     Environment Variables:
-        DB_TYPE: Database type ('postgres' or 'neo4j')
+        DB_TYPE: Database type ('file', 'postgres', or 'neo4j')
         DB_HOST: Database host (default: localhost)
         DB_PORT: Database port
         DB_NAME: Database name
         DB_USER: Database user
         DB_PASSWORD: Database password
+
+    Examples:
+        # File-based (development/prototyping)
+        kg_db, qb_db, res_db = get_db_client(db_type="file")
+
+        # PostgreSQL (production)
+        kg_db, qb_db, res_db = get_db_client(db_type="postgres")
+
+        # Custom file locations
+        config = {
+            "nodes_file": "my_nodes.json",
+            "edges_file": "my_edges.json",
+            "questions_file": "my_questions.json",
+        }
+        kg_db, qb_db, res_db = get_db_client(db_type="file", config=config)
     """
     if db_type is None:
-        db_type = os.getenv("DB_TYPE", "postgres")
+        db_type = os.getenv("DB_TYPE", "file")  # Default to file-based
 
-    if config is None:
-        config = {
-            "host": os.getenv("DB_HOST", "localhost"),
-            "port": int(os.getenv("DB_PORT", "5432")),
-            "database": os.getenv("DB_NAME", "curriculum_db"),
-            "user": os.getenv("DB_USER", "curriculum_user"),
-            "password": os.getenv("DB_PASSWORD", "curriculum_password"),
-        }
+    if db_type == "file":
+        # File-based implementation (development/prototyping)
+        from shared.db.file.knowledge_graph_file import KnowledgeGraphFile
+        from shared.db.file.question_bank_file import QuestionBankFile
+        from shared.db.file.researcher_db_file import ResearcherDBFile
 
-    if db_type == "postgres":
+        return (
+            KnowledgeGraphFile(config),
+            QuestionBankFile(config),
+            ResearcherDBFile(config),
+        )
+
+    elif db_type == "postgres":
+        # PostgreSQL implementation (production)
         from shared.db.postgres.knowledge_graph_postgres import KnowledgeGraphPostgres
         from shared.db.postgres.question_bank_postgres import QuestionBankPostgres
         from shared.db.postgres.researcher_db_postgres import ResearcherDBPostgres
+
+        if config is None:
+            config = {
+                "host": os.getenv("DB_HOST", "localhost"),
+                "port": int(os.getenv("DB_PORT", "5432")),
+                "database": os.getenv("DB_NAME", "curriculum_db"),
+                "user": os.getenv("DB_USER", "curriculum_user"),
+                "password": os.getenv("DB_PASSWORD", "curriculum_password"),
+            }
 
         return (
             KnowledgeGraphPostgres(config),
@@ -309,6 +337,7 @@ def get_db_client(
         )
 
     elif db_type == "neo4j":
+        # Neo4j implementation (future)
         from shared.db.neo4j.knowledge_graph_neo4j import KnowledgeGraphNeo4j
         from shared.db.neo4j.question_bank_neo4j import QuestionBankNeo4j
         from shared.db.neo4j.researcher_db_neo4j import ResearcherDBNeo4j
@@ -320,4 +349,4 @@ def get_db_client(
         )
 
     else:
-        raise ValueError(f"Unknown db_type: {db_type}. Choose 'postgres' or 'neo4j'")
+        raise ValueError(f"Unknown db_type: {db_type}. Choose 'file', 'postgres', or 'neo4j'")
