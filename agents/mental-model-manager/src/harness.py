@@ -1,128 +1,79 @@
 """
-Mental Model Manager Agent
-개념의 mental model(심리적 모델)을 생성하여 학습자의 이해도를 높인다.
+MentalModelManagerHarness: Entity별 평가 기준(Rubric) 생성
 """
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from typing import Optional
-import os
-import json
-
-from shared.schemas import Entity
 from shared.db_client import get_db_client
+from agents.mental_model_manager.src.graphs.mental_model_generation_graph import build_mental_model_generation_graph
 
 
-class MentalModelManager:
-    """Mental model 초안 생성"""
-
+class MentalModelManagerHarness:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0.7,
-            api_key=os.getenv("OPENAI_API_KEY")
-        )
-        kg_db, _, _ = get_db_client()
-        self.kg_db = kg_db
+        self.mental_models = {}  # 메모리 캐시
 
-    def generate_mental_model(
-        self,
-        entity_id: str,
-        mental_model_type: str = "conceptual"
-    ) -> dict:
+    def trigger_generate(self, entity_id: str) -> None:
         """
-        주어진 entity의 mental model 생성
+        Entity에 대한 평가 기준(Mental Model Rubric) 생성
 
         Args:
-            entity_id: Entity ID
-            mental_model_type: 'conceptual', 'analogical', 'narrative'
-
-        Returns:
-            Mental model 데이터
+            entity_id: 평가 기준을 생성할 Entity ID
         """
-        try:
-            entity = self.kg_db.query_entity(entity_id)
-        except Exception as e:
-            return {"error": str(e)}
+        print(f"\n🧠 [GENERATE] Entity ID: {entity_id}")
 
-        name = entity["name"]
-        description = entity.get("description", "")
+        graph = build_mental_model_generation_graph()
+        result = graph.invoke({
+            "entity_id": entity_id,
+            "entity": None,
+            "entity_context": "",
+            "rubric": {},
+            "saved_result": None
+        })
 
-        # Mental model 유형별 프롬프트
-        if mental_model_type == "conceptual":
-            system_prompt = """당신은 학습 심리학 전문가입니다.
-주어진 개념에 대해 학습자가 쉽게 이해할 수 있는 'mental model'을 생성하세요.
+        # 메모리에 저장
+        if result.get("saved_result"):
+            self.mental_models[entity_id] = result["saved_result"]
+            print(f"✅ GENERATE 완료: 평가 기준 생성 및 저장")
 
-다음 구성으로 작성하세요:
-1. **핵심 개념**: 1-2줄의 간단한 정의
-2. **주요 특징**: 3-5개의 주요 특성
-3. **학습자 오류**: 학습자가 자주 범하는 오류 2-3가지
-4. **구체적 예시**: 실제 예제 2가지
-5. **유추/메타포**: 더 친숙한 개념과의 비교"""
+    def get_mental_model(self, entity_id: str) -> dict:
+        """Entity의 Mental Model(평가 기준) 조회"""
+        if entity_id not in self.mental_models:
+            return {"error": f"Mental model not found for entity {entity_id}"}
+        return self.mental_models[entity_id]
 
-        elif mental_model_type == "analogical":
-            system_prompt = """당신은 교육 전문가입니다.
-주어진 개념을 학습자가 이미 알고 있는 친숙한 개념과 비교하여 설명하세요.
+    def show_rubric(self, entity_id: str, level: str = None) -> None:
+        """Mental Model의 평가 기준 표시"""
+        model = self.get_mental_model(entity_id)
 
-다음 구성으로 작성하세요:
-1. **타겟 개념**: 학습할 개념
-2. **유추 개념**: 비슷한 친숙한 개념
-3. **공통점**: 3-4가지 유사성
-4. **차이점**: 2-3가지 차이점
-5. **학습 조언**: 이 유추를 사용할 때의 주의사항"""
+        if "error" in model:
+            print(f"\n❌ {model['error']}")
+            return
 
-        else:  # narrative
-            system_prompt = """당신은 과학 저술가입니다.
-주어진 개념을 일관된 스토리로 설명하여 학습자가 깊이 있게 이해할 수 있게 하세요.
+        print(f"\n📋 [Mental Model Rubric] {model.get('entity_name', entity_id)}")
+        print(f"   Entity Type: {model.get('entity_type')} | Depth: {model.get('entity_depth')}")
 
-다음 구성으로 작성하세요:
-1. **개념의 역사**: 이 개념이 어떻게 발전했는가
-2. **문제 해결**: 이 개념으로 어떤 문제를 해결하는가
-3. **실제 응용**: 현실의 사례
-4. **학습 전략**: 이 개념을 효과적으로 배우는 방법"""
+        levels = {
+            "junior": ("주니어 (Can Execute)", model.get("junior_rubric", [])),
+            "senior": ("시니어 (Can Design)", model.get("senior_rubric", [])),
+            "staff": ("스태프 (Can Predict Failure)", model.get("staff_rubric", []))
+        }
 
-        user_message = f"""
-개념: {name}
-설명: {description}
+        if level:
+            levels = {level: levels.get(level, ("Unknown", []))}
 
-위 개념에 대해 {mental_model_type} 유형의 mental model을 생성해주세요.
-"""
+        for key, (label, items) in levels.items():
+            print(f"\n   {label}:")
+            for i, item in enumerate(items, 1):
+                print(f"     {i}. {item}")
 
-        # LLM 호출
-        response = self.llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_message)
-        ])
+    def get_level_count(self, entity_id: str) -> dict:
+        """각 수준의 평가 항목 개수 반환"""
+        model = self.get_mental_model(entity_id)
+
+        if "error" in model:
+            return model
 
         return {
             "entity_id": entity_id,
-            "mental_model_type": mental_model_type,
-            "content": response.content,
-            "entity": {
-                "id": entity["id"],
-                "name": entity["name"],
-                "description": entity.get("description")
-            }
+            "entity_name": model.get("entity_name"),
+            "junior_count": len(model.get("junior_rubric", [])),
+            "senior_count": len(model.get("senior_rubric", [])),
+            "staff_count": len(model.get("staff_rubric", []))
         }
-
-    def generate_all_types(self, entity_id: str) -> dict:
-        """모든 유형의 mental model 생성"""
-        models = {}
-        for mm_type in ["conceptual", "analogical", "narrative"]:
-            models[mm_type] = self.generate_mental_model(entity_id, mm_type)
-
-        return {
-            "entity_id": entity_id,
-            "mental_models": models
-        }
-
-
-# 싱글턴 인스턴스
-_manager: Optional[MentalModelManager] = None
-
-
-def get_manager() -> MentalModelManager:
-    """Manager 인스턴스 반환"""
-    global _manager
-    if _manager is None:
-        _manager = MentalModelManager()
-    return _manager
