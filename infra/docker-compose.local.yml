@@ -1,0 +1,206 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: curriculum-postgres
+    environment:
+      POSTGRES_DB: curriculum_db
+      POSTGRES_USER: curriculum_user
+      POSTGRES_PASSWORD: curriculum_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schemas/:/docker-entrypoint-initdb.d/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curriculum_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: curriculum-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Curriculum Manager Agent
+  curriculum-manager:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: curriculum-manager
+    container_name: curriculum-manager
+    environment:
+      DB_TYPE: file
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: curriculum_db
+      DB_USER: curriculum_user
+      DB_PASSWORD: curriculum_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+    volumes:
+      - ../../agents/curriculum-manager:/app/agents/curriculum-manager
+      - ../../shared:/app/shared
+      - ../../nodes.json:/app/nodes.json
+      - ../../edges.json:/app/edges.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Mental Model Manager Agent
+  mental-model-manager:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: mental-model-manager
+    container_name: mental-model-manager
+    environment:
+      DB_TYPE: file
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: curriculum_db
+      DB_USER: curriculum_user
+      DB_PASSWORD: curriculum_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8002:8002"
+    depends_on:
+      - redis
+    volumes:
+      - ../../agents/mental-model-manager:/app/agents/mental-model-manager
+      - ../../shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Researcher Agent
+  researcher:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: researcher
+    container_name: researcher
+    environment:
+      DB_TYPE: file
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: curriculum_db
+      DB_USER: curriculum_user
+      DB_PASSWORD: curriculum_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8003:8003"
+    depends_on:
+      - redis
+    volumes:
+      - ../../agents/researcher:/app/agents/researcher
+      - ../../shared:/app/shared
+      - research_results:/app/research_results
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Question Generator Agent
+  question-generator:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: question-generator
+    container_name: question-generator
+    environment:
+      DB_TYPE: file
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: curriculum_db
+      DB_USER: curriculum_user
+      DB_PASSWORD: curriculum_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8004:8004"
+    depends_on:
+      - redis
+    volumes:
+      - ../../agents/question-generator:/app/agents/question-generator
+      - ../../shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # API Gateway
+  gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: gateway
+    container_name: api-gateway
+    environment:
+      CURRICULUM_MANAGER_URL: http://curriculum-manager:8001
+      MENTAL_MODEL_MANAGER_URL: http://mental-model-manager:8002
+      RESEARCHER_URL: http://researcher:8003
+      QUESTION_GENERATOR_URL: http://question-generator:8004
+      LOG_LEVEL: DEBUG
+    ports:
+      - "9000:9000"
+    depends_on:
+      - curriculum-manager
+      - mental-model-manager
+      - researcher
+      - question-generator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  research_results:
+    driver: local
+
+networks:
+  default:
+    name: curriculum-network
+    driver: bridge
