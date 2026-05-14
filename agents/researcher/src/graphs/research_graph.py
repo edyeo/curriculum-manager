@@ -13,7 +13,7 @@ from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
 from shared.schemas import Entity
-from shared.state_manager import load_nodes
+from shared.state_manager import load_nodes, load_skill
 from shared.db_client import get_db_client
 
 
@@ -53,14 +53,7 @@ def _extract_keywords_node(state: ResearchState) -> dict:
     )
     structured_llm = llm.with_structured_output(KeywordExtractionOutput, method="function_calling")
 
-    system_prompt = """당신은 Knowledge Graph 강화 전문가입니다.
-주어진 Entity의 이름, 설명, 타입을 분석하여 추가 조사가 필요한 키워드를 추출하세요.
-
-각 키워드는:
-- 단일 개념을 명확히 나타내야 함
-- Entity 자체와 겹치지 않아야 함
-- 웹 검색으로 좋은 결과를 얻을 수 있어야 함
-- 3-6개 범위 내에서 추출"""
+    skill = load_skill("keyword_extractor_skill.md")
 
     user_message = f"""Entity 분석:
 - 이름: {entity.name}
@@ -68,11 +61,10 @@ def _extract_keywords_node(state: ResearchState) -> dict:
 - 타입: {entity.type.value}
 - Depth: {entity.depth}
 
-이 Entity를 깊게 이해하기 위해 조사해야 할 키워드를 추출하세요.
-각 키워드는 관련 개념, 실제 사용 사례, 최신 동향, 통합 지점 등을 포함할 수 있습니다."""
+이 Entity를 깊게 이해하기 위해 조사해야 할 키워드를 추출하세요."""
 
     response = structured_llm.invoke([
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=skill),
         HumanMessage(content=user_message)
     ])
 
@@ -144,10 +136,9 @@ def _summarize_results_node(state: ResearchState) -> dict:
 
         # LLM으로 요약
         try:
+            summarizer_skill = load_skill("research_summarizer_skill.md")
             summary_response = llm.invoke([
-                SystemMessage(content="""당신은 기술 문서 요약 전문가입니다.
-주어진 웹 검색 결과를 분석하여 핵심 내용을 2-3줄로 요약하세요.
-정확하고 유용한 정보만 포함하세요."""),
+                SystemMessage(content=summarizer_skill),
                 HumanMessage(content=f"""키워드: {keyword}\n\n검색 결과:\n{raw_content}""")
             ])
 
