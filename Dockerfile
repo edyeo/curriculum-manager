@@ -17,9 +17,10 @@ COPY . .
 # 기본값: curriculum-manager
 ENV AGENT=curriculum-manager
 ENV PORT=8001
+ENV PYTHONPATH=/app
 
 # 헬스 체크
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-CMD python -m apps.${AGENT}.main
+CMD uvicorn apps.curriculum_manager.main:app --host 0.0.0.0 --port 8001
