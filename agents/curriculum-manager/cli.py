@@ -62,7 +62,7 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    from src.harness import PassIterationHarness
+    from agents.curriculum_manager.src.harness import PassIterationHarness
     harness = PassIterationHarness()
 
     if args.command == "draft":

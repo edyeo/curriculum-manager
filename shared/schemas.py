@@ -9,7 +9,7 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
-from src.ontology_loader import get_ontology
+from shared.ontology_loader import get_ontology
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

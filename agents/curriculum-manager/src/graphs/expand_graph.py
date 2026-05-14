@@ -15,12 +15,12 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
-from src.schemas import (
+from shared.schemas import (
     Edge, Entity, EntityType,
     DebateNodeGenerationOutput,
     EdgeGenerationOutput,
 )
-from src.state_manager import load_skill
+from shared.state_manager import load_skill
 
 MAX_NEW_NODES = 10
 

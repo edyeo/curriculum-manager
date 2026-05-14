@@ -12,9 +12,9 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
-from src.schemas import Entity, EntityType, NodeGenerationOutput
-from src.state_manager import load_skill
-from src.ontology_loader import get_ontology
+from shared.schemas import Entity, EntityType, NodeGenerationOutput
+from shared.state_manager import load_skill
+from shared.ontology_loader import get_ontology
 
 MAX_NODES_PER_TYPE = 10
 

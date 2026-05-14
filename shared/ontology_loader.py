@@ -3,8 +3,8 @@ OntologyLoader — ontology.yaml (또는 원격 URL)을 로드하여
 런타임에 Enum + Pydantic 모델을 동적으로 생성한다.
 
 사용:
-    from src.ontology_loader import load_ontology
-    ontology = load_ontology("ontology.yaml")
+    from shared.ontology_loader import load_ontology
+    ontology = load_ontology("shared/ontology.yaml")
     EntityType = ontology.make_entity_enum()
     RelationType = ontology.make_relation_enum()
 """
@@ -172,7 +172,8 @@ def load_ontology(source: str | Path = "ontology.yaml") -> Ontology:
 # 애플리케이션 시작 시 한 번만 로드되도록 모듈 수준에서 캐싱.
 # cli.py → harness → 여기서 최초 로드 → 이후 import 시 재사용.
 
-_ONTOLOGY_SOURCE = "ontology.yaml"
+# ontology.yaml은 shared/ 디렉토리에 위치
+_ONTOLOGY_SOURCE = Path(__file__).parent / "ontology.yaml"
 _ontology_cache: Ontology | None = None
 
 

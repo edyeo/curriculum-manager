@@ -11,8 +11,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
-from src.schemas import Edge, Entity, EdgeGenerationOutput
-from src.state_manager import load_skill
+from shared.schemas import Edge, Entity, EdgeGenerationOutput
+from shared.state_manager import load_skill
 
 
 class LinkState(TypedDict):

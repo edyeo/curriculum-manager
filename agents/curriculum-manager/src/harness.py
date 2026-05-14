@@ -1,11 +1,11 @@
 """
 PassIterationHarness: 세 트리거의 진입점 디스패처
 """
-from src.schemas import EntityType, GraphState
-from src.state_manager import load_nodes, load_edges, save_nodes, save_edges, load_state, snapshot_work
-from src.graphs.draft_graph import build_draft_graph
-from src.graphs.link_graph import build_link_graph
-from src.graphs.expand_graph import build_expand_graph
+from shared.schemas import EntityType, GraphState
+from shared.state_manager import load_nodes, load_edges, save_nodes, save_edges, load_state, snapshot_work
+from agents.curriculum_manager.src.graphs.draft_graph import build_draft_graph
+from agents.curriculum_manager.src.graphs.link_graph import build_link_graph
+from agents.curriculum_manager.src.graphs.expand_graph import build_expand_graph
 
 
 class PassIterationHarness:

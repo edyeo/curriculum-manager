@@ -1,8 +1,8 @@
 import json
 import datetime
 from pathlib import Path
-from src.schemas import Entity, Edge, GraphState
-from src.ontology_loader import get_ontology
+from shared.schemas import Entity, Edge, GraphState
+from shared.ontology_loader import get_ontology
 
 NODES_FILE = Path("nodes.json")
 EDGES_FILE = Path("edges.json")
