@@ -40,15 +40,15 @@ install:
 
 # Testing & Quality
 test:
-	pytest tests/ -v --cov=agents --cov=shared --cov-report=html
+	./.venv/bin/pytest tests/ -v --cov=agents --cov=shared --cov-report=html
 
 lint:
-	ruff check agents/ apps/ shared/
-	mypy agents/ apps/ shared/ --ignore-missing-imports
+	./.venv/bin/ruff check agents/ apps/ shared/
+	./.venv/bin/mypy agents/ apps/ shared/ --ignore-missing-imports
 
 format:
-	black agents/ apps/ shared/ tests/
-	isort agents/ apps/ shared/ tests/
+	./.venv/bin/black agents/ apps/ shared/ tests/
+	./.venv/bin/isort agents/ apps/ shared/ tests/
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

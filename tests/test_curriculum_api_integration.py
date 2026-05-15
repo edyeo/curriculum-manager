@@ -6,7 +6,6 @@ import requests
 import json
 import time
 import os
-from typing import dict
 
 
 class TestCurriculumAPIIntegration:

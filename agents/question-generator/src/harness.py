@@ -69,3 +69,8 @@ class QuestionGeneratorHarness:
             print(f"    쉬움(Easy): {stats.get('easy_count', 0)}개")
             print(f"    중간(Medium): {stats.get('medium_count', 0)}개")
             print(f"    어려움(Hard): {stats.get('hard_count', 0)}개")
+
+
+def get_generator() -> QuestionGeneratorHarness:
+    """Question Generator 인스턴스 반환"""
+    return QuestionGeneratorHarness()

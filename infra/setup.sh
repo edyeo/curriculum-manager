@@ -34,10 +34,18 @@ check_prerequisites() {
 
     # Check Docker Compose
     if ! command -v docker-compose &> /dev/null; then
-        print_error "Docker Compose is not installed. Please install Docker Compose."
-        exit 1
+        if docker compose version &> /dev/null 2>&1; then
+            print_warn "docker-compose not found, using 'docker compose' plugin instead."
+            docker-compose() { docker compose "$@"; }
+            export -f docker-compose
+            print_info "Docker Compose (plugin) found: $(docker compose version --short)"
+        else
+            print_error "Docker Compose is not installed. Please install Docker Compose."
+            exit 1
+        fi
+    else
+        print_info "Docker Compose found: $(docker-compose --version)"
     fi
-    print_info "Docker Compose found: $(docker-compose --version)"
 
     # Check Python
     if ! command -v python3 &> /dev/null; then
@@ -51,7 +59,7 @@ check_prerequisites() {
     if ! command -v kubectl &> /dev/null; then
         print_warn "kubectl is not installed. You won't be able to deploy to Kubernetes locally."
     else
-        print_info "kubectl found: $(kubectl version --client --short)"
+        print_info "kubectl found: $(kubectl version --client 2>/dev/null | head -1 || echo 'installed')"
     fi
 }
 
@@ -88,10 +96,9 @@ EOF
 setup_python() {
     print_info "Installing Python dependencies..."
 
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip setuptools wheel
-    pip install -e ".[dev]"
+    cd ..
+    uv sync --extra dev
+    cd infra
 
     print_info "Python dependencies installed."
 }
@@ -168,7 +175,7 @@ Next steps:
    - Redis: localhost:6379
 
 6. Run tests:
-   source venv/bin/activate
+   source .venv/bin/activate
    pytest tests/ -v
 
 7. Stop services:

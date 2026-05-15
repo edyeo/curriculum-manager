@@ -58,10 +58,10 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../../agents/curriculum-manager:/app/agents/curriculum-manager
-      - ../../shared:/app/shared
-      - ../../nodes.json:/app/nodes.json
-      - ../../edges.json:/app/edges.json
+      - ../agents/curriculum-manager:/app/agents/curriculum-manager
+      - ../shared:/app/shared
+      - ../nodes.json:/app/nodes.json
+      - ../edges.json:/app/edges.json
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 10s
@@ -77,6 +77,8 @@ services:
         AGENT: mental-model-manager
     container_name: mental-model-manager
     environment:
+      AGENT: mental-model-manager
+      PORT: 8002
       DB_TYPE: file
       DB_HOST: postgres
       DB_PORT: 5432
@@ -92,8 +94,8 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../../agents/mental-model-manager:/app/agents/mental-model-manager
-      - ../../shared:/app/shared
+      - ../agents/mental-model-manager:/app/agents/mental-model-manager
+      - ../shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 10s
@@ -109,6 +111,8 @@ services:
         AGENT: researcher
     container_name: researcher
     environment:
+      AGENT: researcher
+      PORT: 8003
       DB_TYPE: file
       DB_HOST: postgres
       DB_PORT: 5432
@@ -124,8 +128,8 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../../agents/researcher:/app/agents/researcher
-      - ../../shared:/app/shared
+      - ../agents/researcher:/app/agents/researcher
+      - ../shared:/app/shared
       - research_results:/app/research_results
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
@@ -142,6 +146,8 @@ services:
         AGENT: question-generator
     container_name: question-generator
     environment:
+      AGENT: question-generator
+      PORT: 8004
       DB_TYPE: file
       DB_HOST: postgres
       DB_PORT: 5432
@@ -157,8 +163,8 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../../agents/question-generator:/app/agents/question-generator
-      - ../../shared:/app/shared
+      - ../agents/question-generator:/app/agents/question-generator
+      - ../shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 10s
@@ -174,6 +180,8 @@ services:
         AGENT: gateway
     container_name: api-gateway
     environment:
+      AGENT: gateway
+      PORT: 9000
       CURRICULUM_MANAGER_URL: http://curriculum-manager:8001
       MENTAL_MODEL_MANAGER_URL: http://mental-model-manager:8002
       RESEARCHER_URL: http://researcher:8003

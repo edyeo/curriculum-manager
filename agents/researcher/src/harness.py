@@ -72,3 +72,8 @@ class ResearcherHarness:
                 source_name = source.replace("_count", "").upper()
                 if count > 0:
                     print(f"    {source_name}: {count}개")
+
+
+def get_researcher() -> ResearcherHarness:
+    """Researcher 인스턴스 반환"""
+    return ResearcherHarness()

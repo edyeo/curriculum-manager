@@ -14,6 +14,13 @@ RUN pip install --no-cache-dir -e .
 # 코드 복사
 COPY . .
 
+# agents/ 패키지 초기화 + 하이픈→언더스코어 심볼릭 링크
+RUN touch /app/agents/__init__.py && \
+    ln -sf /app/agents/curriculum-manager /app/agents/curriculum_manager && \
+    ln -sf /app/agents/mental-model-manager /app/agents/mental_model_manager && \
+    ln -sf /app/agents/question-generator /app/agents/question_generator && \
+    chmod +x /app/entrypoint.sh
+
 # 기본값: curriculum-manager
 ENV AGENT=curriculum-manager
 ENV PORT=8001
@@ -23,4 +30,4 @@ ENV PYTHONPATH=/app
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-CMD uvicorn apps.curriculum_manager.main:app --host 0.0.0.0 --port 8001
+ENTRYPOINT ["/app/entrypoint.sh"]

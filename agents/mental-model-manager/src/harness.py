@@ -77,3 +77,8 @@ class MentalModelManagerHarness:
             "senior_count": len(model.get("senior_rubric", [])),
             "staff_count": len(model.get("staff_rubric", []))
         }
+
+
+def get_manager() -> MentalModelManagerHarness:
+    """Mental Model Manager 인스턴스 반환"""
+    return MentalModelManagerHarness()
