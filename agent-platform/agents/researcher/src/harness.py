@@ -1,132 +1,93 @@
 """
-ResearcherHarness: Curriculum 기반 키워드 도출 및 조사
+ResearcherHarness: Curriculum 기반 노드 조사
 """
 import json
+import os
 from pathlib import Path
 from shared.db_client import get_db_client
 from agents.researcher.src.graphs.research_graph import build_research_graph
+
+# nodes.json 위치: 환경 변수로 오버라이드 가능
+NODES_FILE = Path(os.getenv("NODES_FILE", "nodes.json"))
+# 한 번 리서치 시 최대 조사 노드 수 (과도한 API 호출 방지)
+MAX_NODES_PER_RUN = int(os.getenv("RESEARCH_MAX_NODES", "5"))
 
 
 class ResearcherHarness:
     def __init__(self):
         _, _, self.res_db = get_db_client()
 
-    def _load_curriculum_data(self) -> dict:
+    def _load_nodes(self) -> list:
+        """nodes.json에서 노드 목록 로드"""
+        if not NODES_FILE.exists():
+            print(f"Warning: {NODES_FILE} not found")
+            return []
+        try:
+            with open(NODES_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load {NODES_FILE}: {e}")
+            return []
+
+    def trigger_research(self, text: str = None) -> int:
         """
-        Curriculum의 nodes.json을 읽어서 현재 노드들을 반환
-
-        Returns:
-            {"nodes": [...], "edges": [...], "keywords": [...]}
-        """
-        nodes_file = Path("nodes.json")
-        edges_file = Path("edges.json")
-
-        nodes = []
-        edges = []
-        keywords = set()
-
-        # Nodes 로드
-        if nodes_file.exists():
-            try:
-                with open(nodes_file) as f:
-                    nodes = json.load(f)
-                    # 모든 node의 label/name에서 키워드 추출
-                    for node in nodes:
-                        if isinstance(node, dict):
-                            keywords.add(node.get("label") or node.get("name", ""))
-            except Exception as e:
-                print(f"Warning: Could not load nodes.json: {e}")
-
-        # Edges 로드
-        if edges_file.exists():
-            try:
-                with open(edges_file) as f:
-                    edges = json.load(f)
-            except Exception as e:
-                print(f"Warning: Could not load edges.json: {e}")
-
-        return {
-            "nodes": nodes,
-            "edges": edges,
-            "existing_keywords": list(keywords)
-        }
-
-    def _derive_keywords(self, curriculum_data: dict, additional_text: str = None) -> list:
-        """
-        Curriculum의 nodes와 edges를 분석하여 추가될만한 키워드를 도출
+        nodes.json의 실제 노드를 순회하며 웹 검색 → 요약 → 저장
 
         Args:
-            curriculum_data: curriculum의 노드/엣지 정보
-            additional_text: 키워드 도출 시 참고할 추가 텍스트
+            text: 미사용 (API 호환성 유지용)
 
         Returns:
-            추가 조사가 필요한 키워드 리스트
+            실제로 조사한 노드 수
         """
-        existing = set(curriculum_data.get("existing_keywords", []))
+        print(f"\n🔬 [RESEARCH] Loading curriculum nodes from {NODES_FILE}...")
 
-        # 기본 추가 키워드 (실제로는 LLM을 통해 도출할 수 있음)
-        suggested = []
+        nodes = self._load_nodes()
+        if not nodes:
+            print("  No nodes found. Generate curriculum first.")
+            return 0
 
-        # 현재 nodes가 적으면 추가 키워드 제시
-        if len(existing) < 5:
-            suggested = ["Best Practices", "Tools", "Use Cases", "Performance", "Security"]
+        nodes_to_research = nodes[:MAX_NODES_PER_RUN]
+        print(f"  Researching {len(nodes_to_research)} of {len(nodes)} nodes")
 
-        # additional_text가 있으면 그것도 포함
-        if additional_text:
-            suggested.extend(additional_text.split())
+        researched = 0
+        for node in nodes_to_research:
+            node_id = node.get("id", "")
+            node_name = node.get("name") or node.get("label") or node_id
+            if not node_id:
+                continue
 
-        # 이미 있는 키워드는 제외
-        new_keywords = [k for k in suggested if k.lower() not in {e.lower() for e in existing}]
+            print(f"  → Researching: {node_name} ({node_id})")
+            try:
+                graph = build_research_graph()
+                graph.invoke({
+                    "entity_id": node_id,
+                    "entity": None,
+                    "keywords": [],
+                    "search_results": [],
+                    "saved_results": []
+                })
+                researched += 1
+            except Exception as e:
+                print(f"  ✗ Research failed for {node_id}: {e}")
 
-        return new_keywords[:5]  # 최대 5개
-
-    def trigger_research(self, text: str = None) -> None:
-        """
-        Curriculum 분석 → 키워드 도출 → 웹 검색 → 요약 → 저장
-
-        Args:
-            text: 키워드 도출 시 추가 컨텍스트
-        """
-        print(f"\n🔬 [RESEARCH] Analyzing curriculum and deriving keywords...")
-
-        # Curriculum 데이터 로드
-        curriculum_data = self._load_curriculum_data()
-        print(f"  Current keywords: {len(curriculum_data['existing_keywords'])}")
-        print(f"  Nodes: {len(curriculum_data['nodes'])}")
-
-        # 추가될만한 키워드 도출
-        new_keywords = self._derive_keywords(curriculum_data, text)
-        print(f"  Keywords to research: {new_keywords}")
-
-        # 각 키워드에 대해 research 수행
-        for keyword in new_keywords:
-            print(f"  → Researching: {keyword}")
-            graph = build_research_graph()
-            result = graph.invoke({
-                "entity_id": keyword.lower(),
-                "entity": None,
-                "keywords": [keyword],
-                "search_results": [],
-                "saved_results": []
-            })
-
-        print(f"✅ RESEARCH 완료: {len(new_keywords)}개 키워드 조사")
+        print(f"✅ RESEARCH 완료: {researched}개 노드 조사")
+        return researched
 
     def research(self, text: str = None) -> dict:
         """
         Curriculum 기반 조사 수행
 
         Args:
-            text: 키워드 도출 시 추가 컨텍스트 (optional)
+            text: 추가 컨텍스트 (optional, 현재 미사용)
 
         Returns:
             조사 결과 요약
         """
-        self.trigger_research(text)
+        count = self.trigger_research(text)
         return {
             "status": "research_completed",
-            "keywords_researched": 5,
-            "results_saved": True
+            "nodes_researched": count,
+            "results_saved": count > 0
         }
 
     def get_summary(self, entity_id: str) -> dict:

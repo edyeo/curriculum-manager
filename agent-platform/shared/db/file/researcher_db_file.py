@@ -3,6 +3,7 @@ File-based implementation of ResearcherDB
 Uses research_results.json for storage
 """
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -23,7 +24,8 @@ class ResearcherDBFile(ResearcherDB):
                 - research_file: Path to research_results.json
         """
         self.config = config or {}
-        self.research_file = Path(self.config.get("research_file", "research_results.json"))
+        default_path = os.getenv("RESEARCH_FILE", "research_results.json")
+        self.research_file = Path(self.config.get("research_file", default_path))
 
         self._init_files()
         self._load()
