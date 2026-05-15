@@ -8,9 +8,12 @@ import pytest
 import shutil
 import tempfile
 import os
-import json
 from typing import Generator
 from pathlib import Path
+from dotenv import load_dotenv
+
+# .env 파일에서 환경 변수 로드
+load_dotenv()
 
 
 @pytest.fixture(scope="session")
@@ -110,12 +113,11 @@ def cleanup_test_data():
     테스트 종료 후 원래 상태로 복구한다.
     """
     # Test 시작 전: 데이터 파일 백업
-    project_root = Path(__file__).parent.parent
     data_files = ["nodes.json", "edges.json", "questions.json", "research_results.json"]
     backups = {}
 
     for filename in data_files:
-        filepath = project_root / filename
+        filepath = Path(filename)
         if filepath.exists():
             # 임시 파일에 내용을 복사
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
@@ -142,5 +144,7 @@ def requires_real_llm():
     이 fixture를 사용하는 테스트는 자동으로 skip된다.
     """
     key = os.getenv("OPENAI_API_KEY", "")
-    if not key or key.startswith("sk-test") or key == "sk-your-key-here":
-        pytest.skip("OPENAI_API_KEY not set or test key — LLM test skipped")
+    if not key:
+        pytest.skip("OPENAI_API_KEY not set in .env — LLM test skipped")
+    if key.startswith("sk-test") or key.startswith("sk-...") or key == "sk-your-key-here":
+        pytest.skip("OPENAI_API_KEY is placeholder — LLM test skipped")
