@@ -7,12 +7,13 @@ from shared.ontology_loader import get_ontology
 
 NODES_FILE = Path(os.getenv("NODES_FILE", "nodes.json"))
 EDGES_FILE = Path(os.getenv("EDGES_FILE", "edges.json"))
-# Skills are located in the curriculum-manager agent directory
-# Try multiple possible paths for flexibility
+# Skills dir: check all agent-specific paths
 _possible_skills_dirs = [
-    Path("agents/curriculum-manager/skills"),  # Local: project root
-    Path("/app/agents/curriculum-manager/skills"),  # Docker: absolute path
-    Path("skills"),  # Fallback: relative
+    Path("agents/curriculum-manager/skills"),
+    Path("/app/agents/curriculum-manager/skills"),
+    Path("agents/researcher/skills"),
+    Path("/app/agents/researcher/skills"),
+    Path("skills"),
 ]
 SKILLS_DIR = next((p for p in _possible_skills_dirs if p.exists()), Path("skills"))
 WORK_DIR = Path("_work")
@@ -70,11 +71,14 @@ def save_state(state: GraphState) -> None:
 # ── Skills ─────────────────────────────────────────────────────
 
 def load_skill(skill_filename: str) -> str:
-    """skills/ 디렉토리에서 skill.md 파일 로드."""
-    skill_path = SKILLS_DIR / skill_filename
-    if not skill_path.exists():
-        raise FileNotFoundError(f"Skill file not found: {skill_path}")
-    return skill_path.read_text(encoding="utf-8")
+    """skills/ 디렉토리에서 skill.md 파일 로드. 여러 디렉토리를 순서대로 검색."""
+    for skills_dir in _possible_skills_dirs:
+        if not skills_dir.exists():
+            continue
+        skill_path = skills_dir / skill_filename
+        if skill_path.exists():
+            return skill_path.read_text(encoding="utf-8")
+    raise FileNotFoundError(f"Skill file not found: {skill_filename} in {_possible_skills_dirs}")
 
 
 # ── Work Snapshots ─────────────────────────────────────────────
