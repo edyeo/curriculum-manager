@@ -3,7 +3,7 @@ Backend API Gateway
 모든 에이전트 API를 조율하고 조합하는 중앙 서버
 향후 인증, 레이트 리미팅, 로깅 등을 추가
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -25,11 +25,12 @@ app.add_middleware(
 )
 
 # 에이전트 서버 주소
+# Docker 환경에서는 서비스 이름으로 통신
 AGENTS = {
-    "curriculum": "http://localhost:8001",
-    "mental-models": "http://localhost:8002",
-    "research": "http://localhost:8003",
-    "questions": "http://localhost:8004",
+    "curriculum": "http://curriculum-manager:8001",
+    "mental-models": "http://mental-model-manager:8002",
+    "research": "http://researcher:8003",
+    "questions": "http://question-generator:8004",
 }
 
 
@@ -162,7 +163,7 @@ async def generate_curriculum(request: CurriculumGenerationRequest):
 # ========== Proxy Routes (에이전트 API 직접 호출) ==========
 
 @app.api_route("/proxy/{agent}/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def proxy(agent: str, path: str, request):
+async def proxy(agent: str, path: str, request: Request):
     """
     에이전트 API 프록시
     사용: /proxy/curriculum/api/curriculum/status
@@ -173,10 +174,20 @@ async def proxy(agent: str, path: str, request):
     try:
         async with httpx.AsyncClient() as client:
             url = f"{AGENTS[agent]}/{path}"
+
+            # GET 요청인 경우 body 없음
+            body = None
+            if request.method in ["POST", "PUT"]:
+                try:
+                    body = await request.json()
+                except:
+                    body = None
+
             response = await client.request(
                 method=request.method,
                 url=url,
-                json=await request.json() if request.method in ["POST", "PUT"] else None
+                json=body,
+                params=request.query_params if request.method == "GET" else None
             )
             return response.json()
     except Exception as e:
