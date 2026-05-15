@@ -1,4 +1,6 @@
-.PHONY: help setup install test lint format clean docker-build docker-up docker-down k8s-deploy k8s-delete terraform-init terraform-plan terraform-apply
+.PHONY: help setup install test lint format clean docker-build docker-up docker-down docker-restart docker-health docker-logs docker-logs- build-cm up-cm k8s-deploy k8s-delete terraform-init terraform-plan terraform-apply
+
+COMPOSE = docker compose --env-file ../.env -f infra/docker-compose.yml -f infra/docker-compose.local.yml
 
 help:
 	@echo "curriculum-manager development commands"
@@ -55,30 +57,40 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf build/ dist/ .coverage htmlcov/
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml down -v
+	$(COMPOSE) down -v
 
 # Docker Commands
 docker-build:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml build
+	$(COMPOSE) build
 
 docker-up:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml up -d
+	$(COMPOSE) up -d
 	@echo "Services starting. Check health with: make docker-health"
 
 docker-down:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml down
+	$(COMPOSE) down
+
+
+docker-restart: docker-down docker-up
+
+# Contents Manager만 재빌드·재시작
+build-cm:
+	$(COMPOSE) build --no-cache contents-manager-backend contents-manager-frontend
+
+up-cm:
+	$(COMPOSE) up -d --force-recreate contents-manager-backend contents-manager-frontend
 
 docker-health:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml ps
+	$(COMPOSE) ps
 
 docker-logs:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml logs -f
+	$(COMPOSE) logs -f
 
 docker-logs-%:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml logs -f $*
+	$(COMPOSE) logs -f $*
 
 docker-shell-%:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml exec $* /bin/sh
+	$(COMPOSE) exec $* /bin/sh
 
 # Kubernetes Commands
 k8s-namespace:
@@ -125,11 +137,15 @@ run-agent-%:
 	AGENT=$* python -m apps.$*.main
 
 check-health:
-	@echo "Curriculum Manager:" && curl -s http://localhost:8001/health | jq '.'
-	@echo "Mental Model Manager:" && curl -s http://localhost:8002/health | jq '.'
-	@echo "Researcher:" && curl -s http://localhost:8003/health | jq '.'
-	@echo "Question Generator:" && curl -s http://localhost:8004/health | jq '.'
-	@echo "API Gateway:" && curl -s http://localhost:9000/health | jq '.'
+	@echo "=== Agent Platform ==="
+	@curl -sf http://localhost:8001/health | jq '.' 2>/dev/null || echo "curriculum-manager: DOWN"
+	@curl -sf http://localhost:8002/health | jq '.' 2>/dev/null || echo "mental-model-manager: DOWN"
+	@curl -sf http://localhost:8003/health | jq '.' 2>/dev/null || echo "researcher: DOWN"
+	@curl -sf http://localhost:8004/health | jq '.' 2>/dev/null || echo "question-generator: DOWN"
+	@curl -sf http://localhost:9000/health | jq '.' 2>/dev/null || echo "api-gateway: DOWN"
+	@echo "=== Contents Manager ==="
+	@curl -sf http://localhost:8010/api/health | jq '.' 2>/dev/null || echo "cm-backend: DOWN"
+	@curl -sf http://localhost:3000 -o /dev/null -w "cm-frontend: HTTP %{http_code}\n" 2>/dev/null || echo "cm-frontend: DOWN"
 
 generate-curriculum:
 	curl -X POST http://localhost:9000/curriculum/generate \
@@ -151,17 +167,17 @@ generate-questions:
 
 # Database
 db-migrate:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml exec postgres \
+	$(COMPOSE) exec postgres \
 		psql -U curriculum_user -d curriculum_db -f /docker-entrypoint-initdb.d/01_knowledge_graph.sql
 
 db-shell:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml exec postgres \
+	$(COMPOSE) exec postgres \
 		psql -U curriculum_user -d curriculum_db
 
 db-backup:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml exec postgres \
+	$(COMPOSE) exec postgres \
 		pg_dump -U curriculum_user curriculum_db > backup_$(shell date +%Y%m%d_%H%M%S).sql
 
 redis-cli:
-	docker-compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml exec redis \
+	$(COMPOSE) exec redis \
 		redis-cli
