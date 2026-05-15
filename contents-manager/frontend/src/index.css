@@ -179,26 +179,8 @@ tr.selected td { background: #1e2233; }
 .empty-msg { color: #4a5568; font-size: 13px; text-align: center; padding: 20px 0; }
 
 /* ── Graph tab ── */
-.graph-tab { position: relative; height: 100%; background: #0a0c14; overflow: hidden; }
-.graph-canvas { position: absolute; inset: 0; }
-.graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.graph-node {
-  position: absolute;
-  background: #1a1d2e;
-  border: 1px solid #2d3748;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: default;
-  transition: border-color 0.2s;
-}
-.graph-node:hover { border-color: #6366f1; }
-.graph-node .node-name { font-weight: 500; }
-.graph-node .node-type { font-size: 10px; color: #64748b; }
-.graph-node.type-Seed { border-left: 3px solid #f59e0b; }
-.graph-node.type-Concept { border-left: 3px solid #38bdf8; }
-.graph-node.type-TechStack { border-left: 3px solid #34d399; }
+.graph-tab { display: flex; flex-direction: column; height: 100%; background: #080c14; }
+.graph-tab > div:last-child { overflow: auto; flex: 1; }
 
 /* ── Research tab ── */
 .research-tab { padding: 20px; overflow-y: auto; height: 100%; }
