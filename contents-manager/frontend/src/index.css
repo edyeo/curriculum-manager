@@ -107,6 +107,8 @@ input:focus, select:focus, textarea:focus {
 }
 .table-toolbar input { width: 200px; }
 .table-toolbar select { width: 130px; }
+.btn-generate { background: #44337a; color: #d6bcfa; }
+.btn-generate:hover { background: #6b46c1; }
 .btn-expand { background: #0f4c75; color: #90cdf4; }
 .btn-expand:hover { background: #1a6fa8; }
 .btn-add-node { background: #1a472a; color: #9ae6b4; }

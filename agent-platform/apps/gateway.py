@@ -24,13 +24,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 에이전트 서버 주소
-# Docker 환경에서는 서비스 이름으로 통신
+# 에이전트 서버 주소 (env var로 override 가능, 로컬 실행 시 활용)
+import os
 AGENTS = {
-    "curriculum": "http://curriculum-manager:8001",
-    "mental-models": "http://mental-model-manager:8002",
-    "research": "http://researcher:8003",
-    "questions": "http://question-generator:8004",
+    "curriculum": os.getenv("CURRICULUM_URL", "http://curriculum-manager:8001"),
+    "mental-models": os.getenv("MENTAL_MODEL_URL", "http://mental-model-manager:8002"),
+    "research": os.getenv("RESEARCH_URL", "http://researcher:8003"),
+    "questions": os.getenv("QUESTIONS_URL", "http://question-generator:8004"),
 }
 
 

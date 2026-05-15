@@ -202,6 +202,29 @@ def delete_edge(
     return {"status": "deleted"}
 
 
+# ── AI Generate (Draft) ─────────────────────────────────────────────────────
+
+@router.post("/curriculum/generate")
+async def generate_draft(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_utils.get_current_user),
+):
+    subject = _get_subject_or_404(subject_id, db)
+    before_node_ids = {n["id"] for n in file_db.read_nodes()}
+    before_edge_ids = {e["id"] for e in file_db.read_edges()}
+
+    await gateway_client.generate_curriculum(subject.name, subject.description or "")
+
+    for nid in ({n["id"] for n in file_db.read_nodes()} - before_node_ids):
+        db.add(SubjectNode(subject_id=subject_id, node_id=nid))
+    for eid in ({e["id"] for e in file_db.read_edges()} - before_edge_ids):
+        db.add(SubjectEdge(subject_id=subject_id, edge_id=eid))
+    db.commit()
+    node_count = db.query(SubjectNode).filter(SubjectNode.subject_id == subject_id).count()
+    return {"status": "generated", "nodes_added": node_count}
+
+
 # ── AI Expand ───────────────────────────────────────────────────────────────
 
 @router.post("/curriculum/expand")

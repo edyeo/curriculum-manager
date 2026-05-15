@@ -15,6 +15,7 @@ export default function App() {
   const [edges, setEdges] = useState([])
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [expanding, setExpanding] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -65,6 +66,19 @@ export default function App() {
   const handleAddNode = async (nodeData) => {
     const n = await api.createNode(selectedSubjectId, nodeData)
     setNodes(prev => [...prev, { ...n, edge_count: 0 }])
+  }
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    try {
+      await api.generateCurriculum(selectedSubjectId)
+      const [nd, ed] = await Promise.all([
+        api.getNodes(selectedSubjectId),
+        api.getEdges(selectedSubjectId),
+      ])
+      setNodes(nd.nodes || [])
+      setEdges(ed.edges || [])
+    } finally { setGenerating(false) }
   }
 
   const handleExpand = async () => {
@@ -129,6 +143,8 @@ export default function App() {
                     selectedNodeId={selectedNodeId}
                     onSelectNode={id => setSelectedNodeId(prev => prev === id ? null : id)}
                     onAddNode={handleAddNode}
+                    onGenerate={handleGenerate}
+                    generating={generating}
                     onExpand={handleExpand}
                     expanding={expanding}
                   />

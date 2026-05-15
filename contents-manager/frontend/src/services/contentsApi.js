@@ -53,6 +53,10 @@ export const createEdge = (subjectId, edge) =>
 export const deleteEdge = (subjectId, edgeId) =>
   fetch(`${BASE}/subjects/${subjectId}/edges/${edgeId}`, { method: 'DELETE', headers: headers() }).then(handle)
 
+// Generate draft (for existing subject)
+export const generateCurriculum = (subjectId) =>
+  fetch(`${BASE}/subjects/${subjectId}/curriculum/generate`, { method: 'POST', headers: headers() }).then(handle)
+
 // Expand
 export const expandCurriculum = (subjectId) =>
   fetch(`${BASE}/subjects/${subjectId}/curriculum/expand`, { method: 'POST', headers: headers() }).then(handle)
