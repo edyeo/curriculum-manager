@@ -119,11 +119,14 @@ def cleanup_test_data():
     for filename in data_files:
         filepath = Path(filename)
         if filepath.exists():
-            # 임시 파일에 내용을 복사
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
-                with open(filepath, 'r') as src:
-                    tmp.write(src.read())
-                backups[filepath] = tmp.name
+            try:
+                # 임시 파일에 내용을 복사
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
+                    with open(filepath, 'r', encoding='utf-8') as src:
+                        tmp.write(src.read())
+                    backups[filepath] = tmp.name
+            except Exception as e:
+                print(f"Warning: Failed to backup {filename}: {e}")
 
     yield  # Test 실행
 
@@ -131,8 +134,13 @@ def cleanup_test_data():
     for filepath, backup_path in backups.items():
         try:
             shutil.copy(backup_path, filepath)
+        except Exception as e:
+            print(f"Warning: Failed to restore {filepath}: {e}")
         finally:
-            os.unlink(backup_path)
+            try:
+                os.unlink(backup_path)
+            except Exception as e:
+                print(f"Warning: Failed to cleanup backup {backup_path}: {e}")
 
 
 @pytest.fixture

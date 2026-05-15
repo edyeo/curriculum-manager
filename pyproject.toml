@@ -29,3 +29,4 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["tests/archived", ".venv", ".git"]
