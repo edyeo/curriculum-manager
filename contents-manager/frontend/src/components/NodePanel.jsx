@@ -104,6 +104,23 @@ export default function NodePanel({ subjectId, nodeId, nodes, edges, onClose, on
             <div style={{ color: '#94a3b8', fontSize: 13 }}>{node.depth}</div>
             <label>설명</label>
             <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} />
+            {nodeEdges.length > 0 && (
+              <div className="detail-links">
+                <label>연결 ({nodeEdges.length})</label>
+                {nodeEdges.map(e => {
+                  const isSource = e.source_id === nodeId
+                  const otherId = isSource ? e.target_id : e.source_id
+                  const other = nodes.find(n => n.id === otherId)
+                  return (
+                    <div key={e.id} className="detail-link-item">
+                      <span className="detail-link-arrow">{isSource ? '→' : '←'}</span>
+                      <span className="detail-link-rel">{e.relation_type}</span>
+                      <span className="detail-link-name">{other?.name || otherId}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </>
         )}
 
