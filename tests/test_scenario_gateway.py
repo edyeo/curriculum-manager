@@ -40,8 +40,7 @@ class TestAgentStatus:
 class TestCurriculumScenario:
     """Curriculum Manager를 통한 Draft → Status 시나리오"""
 
-    @pytest.mark.usefixtures("requires_real_llm")
-    def test_curriculum_draft_via_gateway(self, gateway_url: str):
+    def test_curriculum_draft_via_gateway(self, gateway_url: str, requires_real_llm):
         """Test: Gateway를 통한 Draft 생성"""
         draft_request = {
             "subject": "Gateway Test Subject"
@@ -78,8 +77,7 @@ class TestCurriculumScenario:
 class TestResearchScenario:
     """Researcher를 통한 Research Start → Summary 시나리오"""
 
-    @pytest.mark.usefixtures("requires_real_llm")
-    def test_research_start_via_gateway(self, gateway_url: str):
+    def test_research_start_via_gateway(self, gateway_url: str, requires_real_llm):
         """Test: Gateway를 통한 Research 시작"""
         research_request = {
             "entity_id": "concept-test-001"
@@ -115,8 +113,7 @@ class TestResearchScenario:
 class TestMentalModelScenario:
     """Mental Model Manager를 통한 생성 → 조회 시나리오"""
 
-    @pytest.mark.usefixtures("requires_real_llm")
-    def test_mental_model_generate_via_gateway(self, gateway_url: str):
+    def test_mental_model_generate_via_gateway(self, gateway_url: str, requires_real_llm):
         """Test: Gateway를 통한 Mental Model 생성"""
         request_data = {
             "mental_model_type": "conceptual"
@@ -149,8 +146,7 @@ class TestMentalModelScenario:
 class TestQuestionScenario:
     """Question Generator를 통한 생성 → 통계 시나리오"""
 
-    @pytest.mark.usefixtures("requires_real_llm")
-    def test_question_generate_via_gateway(self, gateway_url: str):
+    def test_question_generate_via_gateway(self, gateway_url: str, requires_real_llm):
         """Test: Gateway를 통한 Question 생성"""
         request_data = {
             "entity_id": "skill-test-001",
@@ -213,8 +209,7 @@ class TestQuestionScenario:
 class TestOrchestratedScenario:
     """전체 Orchestrated 시나리오: 모든 Agent 연동"""
 
-    @pytest.mark.usefixtures("requires_real_llm")
-    def test_full_orchestration_workflow(self, gateway_url: str):
+    def test_full_orchestration_workflow(self, gateway_url: str, requires_real_llm):
         """Test: 전체 워크플로우 (DRAFT → RESEARCH → MENTAL MODEL → QUESTIONS)"""
 
         subject = "Full Orchestration Test Subject"
