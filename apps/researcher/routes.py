@@ -13,9 +13,7 @@ router = APIRouter(prefix="/api/research", tags=["research"])
 # ========== Request/Response Models ==========
 
 class ResearchRequest(BaseModel):
-    entity_id: str
-    keywords: Optional[List[str]] = None
-    sources: Optional[List[str]] = None  # blog, linkedin, github, paper
+    text: Optional[str] = None  # 키워드 도출 시 추가 컨텍스트로 활용
 
 
 class QueryRequest(BaseModel):
@@ -27,15 +25,17 @@ class QueryRequest(BaseModel):
 # ========== Routes ==========
 
 @router.post("/start")
-async def start_research(request: ResearchRequest):
-    """주어진 entity에 대해 조사 시작"""
+async def start_research(request: Optional[ResearchRequest] = None):
+    """
+    Curriculum의 노드/링크 정보를 분석하여 추가될만한 키워드를 도출하고 조사 수행
+
+    Optional:
+    - text: 키워드 도출 시 추가 컨텍스트로 활용할 텍스트
+    """
     try:
         researcher = get_researcher()
-        result = researcher.research(
-            entity_id=request.entity_id,
-            keywords=request.keywords,
-            sources=request.sources
-        )
+        additional_text = request.text if request else None
+        result = researcher.research(text=additional_text)
         return {
             "status": "success",
             "data": result
