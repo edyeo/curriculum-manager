@@ -123,6 +123,8 @@ services:
       REDIS_PORT: 6379
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
       LOG_LEVEL: DEBUG
+      NODES_FILE: /app/nodes.json
+      RESEARCH_FILE: /app/research_results/research_results.json
     ports:
       - "8003:8003"
     depends_on:
@@ -130,6 +132,7 @@ services:
     volumes:
       - ../agents/researcher:/app/agents/researcher
       - ../shared:/app/shared
+      - ../../nodes.json:/app/nodes.json
       - research_results:/app/research_results
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]

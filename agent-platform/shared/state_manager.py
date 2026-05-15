@@ -1,11 +1,12 @@
 import json
+import os
 import datetime
 from pathlib import Path
 from shared.schemas import Entity, Edge, GraphState
 from shared.ontology_loader import get_ontology
 
-NODES_FILE = Path("nodes.json")
-EDGES_FILE = Path("edges.json")
+NODES_FILE = Path(os.getenv("NODES_FILE", "nodes.json"))
+EDGES_FILE = Path(os.getenv("EDGES_FILE", "edges.json"))
 # Skills are located in the curriculum-manager agent directory
 # Try multiple possible paths for flexibility
 _possible_skills_dirs = [
