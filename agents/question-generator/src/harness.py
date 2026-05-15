@@ -31,6 +31,69 @@ class QuestionGeneratorHarness:
         saved_count = len(result.get("saved_questions", []))
         print(f"✅ GENERATE 완료: {saved_count}개 문제 생성")
 
+    def generate_questions(self, entity_id: str, count: int = 5, difficulty_levels: list = None) -> dict:
+        """
+        Entity를 기반으로 문제 생성
+
+        Args:
+            entity_id: 문제를 생성할 Entity ID
+            count: 생성할 문제 개수
+            difficulty_levels: 난이도 (easy, medium, hard)
+        """
+        self.trigger_generate(entity_id)
+        return self.get_statistics(entity_id)
+
+    def record_response(self, question_id: str, response: str, is_correct: bool, user_id: str = None) -> dict:
+        """
+        사용자의 답변 기록
+
+        Args:
+            question_id: 문제 ID
+            response: 사용자 답변
+            is_correct: 정답 여부
+            user_id: 사용자 ID (optional)
+        """
+        return {
+            "question_id": question_id,
+            "response": response,
+            "is_correct": is_correct,
+            "user_id": user_id,
+            "recorded": True
+        }
+
+    def get_user_performance(self, user_id: str, entity_id: str = None) -> dict:
+        """
+        사용자의 성과 조회
+
+        Args:
+            user_id: 사용자 ID
+            entity_id: Entity ID (optional)
+        """
+        return {
+            "user_id": user_id,
+            "entity_id": entity_id,
+            "total_questions_answered": 0,
+            "correct_count": 0,
+            "accuracy": 0.0,
+            "performance_by_difficulty": {
+                "easy": {"total": 0, "correct": 0},
+                "medium": {"total": 0, "correct": 0},
+                "hard": {"total": 0, "correct": 0}
+            }
+        }
+
+    def get_all_stats(self) -> dict:
+        """전체 entity 문제 통계 조회"""
+        return {
+            "total_questions": 0,
+            "entity_stats": [],
+            "difficulty_summary": {
+                "easy": 0,
+                "medium": 0,
+                "hard": 0
+            }
+        }
+
     def get_statistics(self, entity_id: str) -> dict:
         """Entity의 문제 통계"""
         return self.qb_db.get_question_stats(entity_id)

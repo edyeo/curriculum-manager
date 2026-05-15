@@ -30,6 +30,18 @@ class ResearcherHarness:
         saved_count = len(result.get("saved_results", []))
         print(f"✅ RESEARCH 완료: {saved_count}개 결과 저장")
 
+    def research(self, entity_id: str, keywords: list = None, sources: list = None) -> dict:
+        """
+        주어진 entity에 대해 조사 시작
+
+        Args:
+            entity_id: 조사할 Entity ID
+            keywords: 검색 키워드 (optional)
+            sources: 검색 소스 (blog, linkedin, github, paper)
+        """
+        self.trigger_research(entity_id)
+        return self.get_summary(entity_id)
+
     def get_summary(self, entity_id: str) -> dict:
         """Entity의 조사 요약 반환"""
         return self.res_db.get_research_summary(entity_id)

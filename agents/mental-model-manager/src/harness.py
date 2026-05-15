@@ -9,14 +9,14 @@ class MentalModelManagerHarness:
     def __init__(self):
         self.mental_models = {}  # 메모리 캐시
 
-    def trigger_generate(self, entity_id: str) -> None:
+    def trigger_generate(self, entity_id: str = None) -> None:
         """
         Entity에 대한 평가 기준(Mental Model Rubric) 생성
 
         Args:
-            entity_id: 평가 기준을 생성할 Entity ID
+            entity_id: 평가 기준을 생성할 Entity ID (optional, 일반적인 rubric 생성)
         """
-        print(f"\n🧠 [GENERATE] Entity ID: {entity_id}")
+        print(f"\n🧠 [GENERATE] Mental Model generation")
 
         graph = build_mental_model_generation_graph()
         result = graph.invoke({
@@ -29,8 +29,32 @@ class MentalModelManagerHarness:
 
         # 메모리에 저장
         if result.get("saved_result"):
-            self.mental_models[entity_id] = result["saved_result"]
+            key = entity_id if entity_id else "default"
+            self.mental_models[key] = result["saved_result"]
             print(f"✅ GENERATE 완료: 평가 기준 생성 및 저장")
+
+    def generate_mental_model(self, entity_id: str, mental_model_type: str = "conceptual") -> dict:
+        """
+        특정 유형의 Mental Model 생성
+
+        Args:
+            entity_id: Entity ID (optional)
+            mental_model_type: 생성 유형 (conceptual, analogical, narrative)
+        """
+        self.trigger_generate(entity_id)
+        key = entity_id if entity_id else "default"
+        return self.get_mental_model(key) if key in self.mental_models else {"status": "generated"}
+
+    def generate_all_types(self, entity_id: str = None) -> dict:
+        """
+        모든 유형의 Mental Model 생성
+
+        Args:
+            entity_id: Entity ID (optional)
+        """
+        self.trigger_generate(entity_id)
+        key = entity_id if entity_id else "default"
+        return self.get_mental_model(key) if key in self.mental_models else {"status": "generated"}
 
     def get_mental_model(self, entity_id: str) -> dict:
         """Entity의 Mental Model(평가 기준) 조회"""

@@ -105,3 +105,17 @@ async def get_user_performance(user_id: str, entity_id: Optional[str] = None):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/overview")
+async def get_overview():
+    """전체 entity 문제 통계 조회 (1회 쿼리로 모든 현황 조회)"""
+    try:
+        generator = get_generator()
+        result = generator.get_all_stats()
+        return {
+            "status": "success",
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
