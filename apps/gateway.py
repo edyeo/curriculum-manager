@@ -172,7 +172,7 @@ async def proxy(agent: str, path: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Unknown agent: {agent}")
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             url = f"{AGENTS[agent]}/{path}"
 
             # GET 요청인 경우 body 없음
@@ -180,18 +180,33 @@ async def proxy(agent: str, path: str, request: Request):
             if request.method in ["POST", "PUT"]:
                 try:
                     body = await request.json()
-                except:
+                except Exception:
                     body = None
 
             response = await client.request(
                 method=request.method,
                 url=url,
                 json=body,
-                params=request.query_params if request.method == "GET" else None
+                params=request.query_params if request.method == "GET" else None,
+                timeout=120.0
             )
-            return response.json()
+
+            try:
+                response_data = response.json()
+                return response_data
+            except Exception as json_error:
+                # If JSON parsing fails, return raw content
+                print(f"Failed to parse JSON from {url}: {json_error}")
+                print(f"Response status: {response.status_code}, content: {response.text[:200]}")
+                return {"status": "error", "detail": f"Failed to parse response: {str(json_error)}"}
+    except httpx.ConnectError as e:
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        print(f"Proxy error for {agent}/{path}: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 if __name__ == "__main__":

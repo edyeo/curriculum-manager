@@ -6,7 +6,14 @@ from shared.ontology_loader import get_ontology
 
 NODES_FILE = Path("nodes.json")
 EDGES_FILE = Path("edges.json")
-SKILLS_DIR = Path("skills")
+# Skills are located in the curriculum-manager agent directory
+# Try multiple possible paths for flexibility
+_possible_skills_dirs = [
+    Path("agents/curriculum-manager/skills"),  # Local: project root
+    Path("/app/agents/curriculum-manager/skills"),  # Docker: absolute path
+    Path("skills"),  # Fallback: relative
+]
+SKILLS_DIR = next((p for p in _possible_skills_dirs if p.exists()), Path("skills"))
 WORK_DIR = Path("_work")
 
 

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/mental-models", tags=["mental-models"])
 # ========== Request/Response Models ==========
 
 class GenerateRequest(BaseModel):
-    entity_id: str
+    entity_id: Optional[str] = None
     mental_model_type: Optional[str] = "conceptual"  # conceptual, analogical, narrative
 
 
@@ -24,13 +24,17 @@ class GenerateAllRequest(BaseModel):
 # ========== Routes ==========
 
 @router.post("/generate")
-async def generate_mental_model(request: GenerateRequest):
+async def generate_mental_model(request: GenerateRequest = None):
     """특정 유형의 mental model 생성"""
     try:
         manager = get_manager()
+        # If no request or entity_id provided, use default
+        entity_id = request.entity_id if request and request.entity_id else "default"
+        mental_model_type = request.mental_model_type if request else "conceptual"
+
         result = manager.generate_mental_model(
-            entity_id=request.entity_id,
-            mental_model_type=request.mental_model_type
+            entity_id=entity_id,
+            mental_model_type=mental_model_type
         )
         return {
             "status": "success",
