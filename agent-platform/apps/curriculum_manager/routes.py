@@ -22,6 +22,15 @@ class LinkRequest(BaseModel):
     target_type: str
 
 
+class AiLinkRequest(BaseModel):
+    source_type: Optional[str] = None
+    source_depth: Optional[int] = None
+    source_node_id: Optional[str] = None
+    target_type: Optional[str] = None
+    target_depth: Optional[int] = None
+    edge_type: Optional[str] = None
+
+
 class GenerateResponse(BaseModel):
     status: str
     message: str
@@ -70,6 +79,30 @@ async def generate_expand():
             status="success",
             message="Graph expanded successfully",
             data={"nodes_count": len(harness.nodes), "edges_count": len(harness.edges)}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate/link-ai", response_model=GenerateResponse)
+async def generate_link_ai(request: AiLinkRequest):
+    """AI Link: 사용자 지정 조건(타입·depth·특정 노드)으로 엣지 생성"""
+    if not request.source_node_id and not request.source_type:
+        raise HTTPException(status_code=400, detail="source_node_id 또는 source_type 중 하나는 필수입니다.")
+    try:
+        harness = PassIterationHarness()
+        new_edges = harness.trigger_link_ai(
+            source_type=request.source_type,
+            source_depth=request.source_depth,
+            target_type=request.target_type,
+            target_depth=request.target_depth,
+            edge_type=request.edge_type,
+            source_node_id=request.source_node_id,
+        )
+        return GenerateResponse(
+            status="success",
+            message=f"{len(new_edges)}개 엣지 추가됨",
+            data={"edges_added": len(new_edges), "total_edges": len(harness.edges)},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

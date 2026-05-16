@@ -1,0 +1,32 @@
+# Worktree 전용 볼륨 오버라이드
+# 상대경로가 워크트리 밖을 참조하는 문제를 절대경로로 교체한다.
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml \
+#                  -f docker-compose.dev.yml \
+#                  -f docker-compose.worktree.yml up -d
+
+version: '3.9'
+
+x-worktree: &wt /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature
+
+services:
+  curriculum-manager:
+    volumes:
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/agent-platform/agents/curriculum-manager:/app/agents/curriculum-manager
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/agent-platform/shared:/app/shared
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/nodes.json:/app/nodes.json
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/edges.json:/app/edges.json
+
+  contents-manager-backend:
+    volumes:
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/contents-manager/backend:/app
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/nodes.json:/app/data/nodes.json
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/edges.json:/app/data/edges.json
+
+  contents-manager-frontend:
+    environment:
+      API_PROXY_TARGET: http://contents-manager-backend:8010
+    volumes:
+      - /Users/ed/writing/project/adaptive-learning-class/curriculum-manager/.claude/worktrees/ai-link-feature/contents-manager/frontend:/app
+      - /app/node_modules

@@ -24,6 +24,16 @@ async def expand_curriculum() -> dict:
         return r.json()
 
 
+async def link_ai_curriculum(payload: dict) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.post(
+            f"{GATEWAY_URL}/proxy/curriculum/api/curriculum/generate/link-ai",
+            json=payload,
+        )
+        r.raise_for_status()
+        return r.json()
+
+
 async def start_research() -> dict:
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         r = await client.post(f"{GATEWAY_URL}/proxy/research/api/research/start", json={})

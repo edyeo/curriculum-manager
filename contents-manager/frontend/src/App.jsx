@@ -4,6 +4,7 @@ import NodeTable from './components/NodeTable.jsx'
 import NodePanel from './components/NodePanel.jsx'
 import GraphView from './components/GraphView.jsx'
 import ResearchTab from './components/ResearchTab.jsx'
+import AiLinkModal from './components/AiLinkModal.jsx'
 import * as api from './services/contentsApi.js'
 
 export default function App() {
@@ -16,6 +17,8 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [expanding, setExpanding] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [aiLinking, setAiLinking] = useState(false)
+  const [showAiLink, setShowAiLink] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -90,6 +93,18 @@ export default function App() {
     } finally { setExpanding(false) }
   }
 
+  const handleAiLink = async (payload) => {
+    setAiLinking(true)
+    try {
+      const res = await api.aiLinkCurriculum(selectedSubjectId, payload)
+      const ed = await api.getEdges(selectedSubjectId)
+      setEdges(ed.edges || [])
+      return res
+    } finally {
+      setAiLinking(false)
+    }
+  }
+
   const handleNodeUpdated = (updated) => {
     setNodes(prev => prev.map(n => n.id === updated.id ? { ...n, ...updated } : n))
   }
@@ -147,6 +162,8 @@ export default function App() {
                     generating={generating}
                     onExpand={handleExpand}
                     expanding={expanding}
+                    onAiLink={() => setShowAiLink(true)}
+                    aiLinking={aiLinking}
                   />
                 </div>
                 {selectedNodeId && (
@@ -169,6 +186,15 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* AI Link Modal */}
+      {showAiLink && (
+        <AiLinkModal
+          nodes={nodes}
+          onConfirm={handleAiLink}
+          onClose={() => setShowAiLink(false)}
+        />
+      )}
 
       {/* Create Subject Modal */}
       {showCreate && (
