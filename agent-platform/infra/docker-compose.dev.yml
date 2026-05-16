@@ -1,0 +1,51 @@
+# Local 개발용 오버라이드. docker-compose.local.yml과 함께 사용:
+#   docker compose -f docker-compose.local.yml -f docker-compose.dev.yml up
+#
+# - 모든 Python 서비스: 코드 경로 마운트 + uvicorn --reload (코드 변경 즉시 반영)
+# - frontend: Vite dev server로 대체 (HMR 지원)
+# 최초 1회만 build 필요. 이후 코드 변경 시 rebuild 불필요.
+
+version: '3.9'
+
+services:
+  curriculum-manager:
+    entrypoint: ["uvicorn", "apps.curriculum_manager.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+    volumes:
+      - ../apps:/app/apps
+
+  mental-model-manager:
+    entrypoint: ["uvicorn", "apps.mental_model_manager.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+    volumes:
+      - ../apps:/app/apps
+
+  researcher:
+    entrypoint: ["uvicorn", "apps.researcher.main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
+    volumes:
+      - ../apps:/app/apps
+
+  question-generator:
+    entrypoint: ["uvicorn", "apps.question_generator.main:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
+    volumes:
+      - ../apps:/app/apps
+
+  gateway:
+    entrypoint: ["uvicorn", "apps.gateway:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
+    volumes:
+      - ../apps:/app/apps
+      - ../agents:/app/agents
+      - ../shared:/app/shared
+
+  contents-manager-backend:
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
+    volumes:
+      - ../../contents-manager/backend:/app
+
+  contents-manager-frontend:
+    build:
+      context: ../../contents-manager/frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ../../contents-manager/frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
