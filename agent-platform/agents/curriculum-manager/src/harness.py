@@ -142,6 +142,57 @@ class PassIterationHarness:
         print(f"✅ AI LINK 완료: {len(new_edges)}개 엣지 추가 (총 {len(self.edges)}개)")
         return new_edges
 
+    def trigger_link_ai_preview(
+        self,
+        source_type: str | None = None,
+        source_depth: int | None = None,
+        target_type: str | None = None,
+        target_depth: int | None = None,
+        edge_type: str | None = None,
+        source_node_id: str | None = None,
+    ) -> list[Edge]:
+        """AI Link 미리보기: 저장 없이 후보 엣지 목록만 반환"""
+        print(f"\n🔍 [AI LINK PREVIEW] source={source_node_id or f'{source_type}(D{source_depth})'} → {target_type}(D{target_depth}) [{edge_type}]")
+
+        if source_node_id:
+            source_nodes = [n for n in self.nodes if n.id == source_node_id]
+            if not source_nodes:
+                return []
+        else:
+            source_nodes = [
+                n for n in self.nodes
+                if (source_type is None or n.type.value == source_type)
+                and (source_depth is None or n.depth == source_depth)
+            ]
+
+        target_nodes = [
+            n for n in self.nodes
+            if (target_type is None or n.type.value == target_type)
+            and (target_depth is None or n.depth == target_depth)
+        ]
+
+        if not source_nodes or not target_nodes:
+            return []
+
+        graph = build_link_graph()
+        result = graph.invoke({
+            "source_type": source_type or "custom",
+            "target_type": target_type or "custom",
+            "source_nodes": source_nodes,
+            "target_nodes": target_nodes,
+            "new_edges": [],
+            "edge_type_constraint": edge_type,
+        })
+
+        existing_pairs = {(e.source_id, e.target_id) for e in self.edges}
+        new_edges = [
+            e for e in result["new_edges"]
+            if (e.source_id, e.target_id) not in existing_pairs
+        ]
+
+        print(f"✅ AI LINK PREVIEW 완료: {len(new_edges)}개 후보 엣지 (저장 안 함)")
+        return new_edges
+
     def trigger_expand(self) -> None:
         """Phase 3: TechStack 역방향 추론으로 새 Seed 생성 → nodes.json + edges.json 저장"""
         print("\n🌱 [T3 EXPAND] 그래프 진화 확장")

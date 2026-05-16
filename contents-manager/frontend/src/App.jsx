@@ -93,16 +93,19 @@ export default function App() {
     } finally { setExpanding(false) }
   }
 
-  const handleAiLink = async (payload) => {
+  const handleAiLinkPreview = async (payload) => {
     setAiLinking(true)
     try {
-      const res = await api.aiLinkCurriculum(selectedSubjectId, payload)
-      const ed = await api.getEdges(selectedSubjectId)
-      setEdges(ed.edges || [])
-      return res
+      return await api.previewAiLink(selectedSubjectId, payload)
     } finally {
       setAiLinking(false)
     }
+  }
+
+  const handleAiLinkConfirm = async (edges) => {
+    await api.confirmAiLink(selectedSubjectId, edges)
+    const ed = await api.getEdges(selectedSubjectId)
+    setEdges(ed.edges || [])
   }
 
   const handleNodeUpdated = (updated) => {
@@ -191,7 +194,8 @@ export default function App() {
       {showAiLink && (
         <AiLinkModal
           nodes={nodes}
-          onConfirm={handleAiLink}
+          onPreview={handleAiLinkPreview}
+          onConfirm={handleAiLinkConfirm}
           onClose={() => setShowAiLink(false)}
         />
       )}
