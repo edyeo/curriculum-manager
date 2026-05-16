@@ -256,6 +256,41 @@ async def link_ai(
     return {"status": "success", "edges_added": len(new_edge_ids)}
 
 
+@router.post("/curriculum/link-ai/preview")
+async def link_ai_preview(
+    subject_id: str,
+    req: AiLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_utils.get_current_user),
+):
+    _get_subject_or_404(subject_id, db)
+    result = await gateway_client.preview_ai_link(req.model_dump(exclude_none=True))
+    return result
+
+
+class AiLinkConfirmRequest(BaseModel):
+    edges: list[dict]
+
+
+@router.post("/curriculum/link-ai/confirm")
+async def link_ai_confirm(
+    subject_id: str,
+    req: AiLinkConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_utils.get_current_user),
+):
+    _get_subject_or_404(subject_id, db)
+    existing_edges = file_db.read_edges()
+    existing_ids = {e["id"] for e in existing_edges}
+    new_edges = [e for e in req.edges if e.get("id") not in existing_ids]
+    if new_edges:
+        file_db.write_edges(existing_edges + new_edges)
+        for e in new_edges:
+            db.add(SubjectEdge(subject_id=subject_id, edge_id=e["id"]))
+        db.commit()
+    return {"edges_saved": len(new_edges)}
+
+
 # ── AI Expand ───────────────────────────────────────────────────────────────
 
 @router.post("/curriculum/expand")
