@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
 
 const NODE_W = 160
 const NODE_H = 58
@@ -12,7 +12,6 @@ const TYPE_STYLE = {
 }
 const DEFAULT_TYPE_STYLE = { bg: '#1a2535', border: '#4a5568', badge: '#4a5568', text: '#94a3b8' }
 
-// Palette: cycle through these for unknown relation types
 const EDGE_PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316']
 const RELATION_COLORS = {
   prerequisite: '#6366f1',
@@ -36,7 +35,6 @@ function edgeColor(relationType, colorCache) {
   return colorCache[key]
 }
 
-// Layout visible nodes: one column per depth, nodes sorted by type within each column
 function layout(visibleNodes) {
   const byDepth = {}
   for (const n of visibleNodes) {
@@ -60,36 +58,73 @@ function layout(visibleNodes) {
 export default function GraphView({ nodes, edges }) {
   const svgRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
-  // { [type]: maxVisibleDepth } — defaults to 1 for each type
-  const [expandedDepths, setExpandedDepths] = useState({})
+  // Set of node IDs whose direct children are currently shown
+  const [expandedNodes, setExpandedNodes] = useState(new Set())
 
-  // Max depth available per type
-  const typeMaxDepths = {}
-  for (const n of nodes) {
-    typeMaxDepths[n.type] = Math.max(typeMaxDepths[n.type] || 0, n.depth)
-  }
+  // Build outgoing adjacency: nodeId → [targetId, ...]
+  const outgoing = useMemo(() => {
+    const map = {}
+    for (const e of edges) {
+      if (!map[e.source_id]) map[e.source_id] = []
+      map[e.source_id].push(e.target_id)
+    }
+    return map
+  }, [edges])
 
-  const getMaxVisible = (type) => expandedDepths[type] ?? 1
+  // Compute visible node IDs via BFS: depth=1 roots are always visible,
+  // then expand through edges for each expanded node
+  const visibleIds = useMemo(() => {
+    const visible = new Set()
+    for (const n of nodes) {
+      if (n.depth === 1) visible.add(n.id)
+    }
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const nodeId of [...visible]) {
+        if (expandedNodes.has(nodeId)) {
+          for (const targetId of (outgoing[nodeId] || [])) {
+            if (!visible.has(targetId)) {
+              visible.add(targetId)
+              changed = true
+            }
+          }
+        }
+      }
+    }
+    return visible
+  }, [nodes, outgoing, expandedNodes])
 
-  const visibleNodes = nodes.filter(n => n.depth <= getMaxVisible(n.type))
+  const visibleNodes = nodes.filter(n => visibleIds.has(n.id))
   const visibleSet = new Set(visibleNodes.map(n => n.id))
   const visibleEdges = edges.filter(e => visibleSet.has(e.source_id) && visibleSet.has(e.target_id))
 
   const positions = layout(visibleNodes)
 
   const handleNodeClick = (node) => {
-    const { type, depth } = node
-    const cur = getMaxVisible(type)
-    const max = typeMaxDepths[type] || 1
-    if (depth === cur && cur < max) {
-      // Frontier node → expand one more depth
-      setExpandedDepths(prev => ({ ...prev, [type]: cur + 1 }))
-    } else if (depth < cur) {
-      // Clicking an inner node → collapse back to this depth
-      setExpandedDepths(prev => ({ ...prev, [type]: depth }))
+    if (expandedNodes.has(node.id)) {
+      // Collapse: cascade-remove this node and all reachable descendants from expandedNodes
+      const toRemove = new Set([node.id])
+      const queue = [node.id]
+      while (queue.length > 0) {
+        const cur = queue.shift()
+        for (const childId of (outgoing[cur] || [])) {
+          if (!toRemove.has(childId)) {
+            toRemove.add(childId)
+            queue.push(childId)
+          }
+        }
+      }
+      setExpandedNodes(prev => {
+        const next = new Set(prev)
+        for (const id of toRemove) next.delete(id)
+        return next
+      })
     } else {
-      // Already at max → collapse to 1
-      setExpandedDepths(prev => ({ ...prev, [type]: 1 }))
+      // Expand: show this node's direct children
+      if ((outgoing[node.id] || []).length > 0) {
+        setExpandedNodes(prev => new Set([...prev, node.id]))
+      }
     }
   }
 
@@ -102,7 +137,6 @@ export default function GraphView({ nodes, edges }) {
     const colorCache = {}
     const usedColors = new Set(visibleEdges.map(e => edgeColor(e.relation_type, colorCache)))
 
-    // Arrow marker defs per color
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
     for (const color of usedColors) {
       const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker')
@@ -133,7 +167,6 @@ export default function GraphView({ nodes, edges }) {
       const sx = s.x + NODE_W, sy = s.y + NODE_H / 2
       const tx = t.x,          ty = t.y + NODE_H / 2
 
-      // If same column (same x), use a looping arc to the right
       let pathD
       if (Math.abs(sx - tx) < 10) {
         const cx = sx + 60
@@ -151,7 +184,6 @@ export default function GraphView({ nodes, edges }) {
       path.setAttribute('marker-end', `url(#${mid})`)
       svg.appendChild(path)
 
-      // Label: pill background + text
       const lx = (sx + tx) / 2
       const ly = (sy + ty) / 2
       const labelText = (e.relation_type || '').replace(/_/g, ' ')
@@ -181,6 +213,11 @@ export default function GraphView({ nodes, edges }) {
     }
   }, [visibleNodes, visibleEdges, JSON.stringify(positions)])
 
+  const typeMaxDepths = {}
+  for (const n of nodes) {
+    typeMaxDepths[n.type] = Math.max(typeMaxDepths[n.type] || 0, n.depth)
+  }
+
   const canvasWidth  = (Object.values(positions).reduce((m, p) => Math.max(m, p.x), 0) || 0) + NODE_W + 60
   const canvasHeight = (Object.values(positions).reduce((m, p) => Math.max(m, p.y), 0) || 0) + NODE_H + 60
 
@@ -192,19 +229,16 @@ export default function GraphView({ nodes, edges }) {
         borderBottom: '1px solid #1e2d3d', fontSize: 11, flexShrink: 0,
       }}>
         {Object.entries(TYPE_STYLE).map(([type, st]) => {
-          const max = typeMaxDepths[type]
-          if (!max) return null
-          const cur = getMaxVisible(type)
+          if (!typeMaxDepths[type]) return null
           return (
             <span key={type} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: st.badge, display: 'inline-block', flexShrink: 0 }} />
               <span style={{ color: st.text, fontWeight: 500 }}>{type}</span>
-              <span style={{ color: '#475569' }}>D{cur}/{max}</span>
             </span>
           )
         })}
         <span style={{ color: '#334155', marginLeft: 'auto', fontSize: 10 }}>
-          노드 클릭 → 같은 타입 depth 펼치기 / 안쪽 클릭 → 접기
+          노드 클릭 → 연결 노드 펼치기 · 다시 클릭 → 접기
         </span>
       </div>
 
@@ -220,10 +254,8 @@ export default function GraphView({ nodes, edges }) {
             const pos = positions[n.id]
             if (!pos) return null
             const st = TYPE_STYLE[n.type] || DEFAULT_TYPE_STYLE
-            const cur = getMaxVisible(n.type)
-            const max = typeMaxDepths[n.type] || 1
-            const isFrontier = n.depth === cur
-            const hasMore = isFrontier && cur < max
+            const isExpanded = expandedNodes.has(n.id)
+            const hasChildren = (outgoing[n.id] || []).length > 0
 
             return (
               <div
@@ -236,12 +268,12 @@ export default function GraphView({ nodes, edges }) {
                   left: pos.x, top: pos.y,
                   width: NODE_W, height: NODE_H,
                   background: st.bg,
-                  border: `1.5px solid ${isFrontier ? st.border : st.border + '55'}`,
+                  border: `1.5px solid ${isExpanded ? st.border : hasChildren ? st.border + '99' : st.border + '44'}`,
                   borderRadius: 8,
                   padding: '7px 10px',
-                  cursor: 'pointer',
+                  cursor: hasChildren ? 'pointer' : 'default',
                   userSelect: 'none',
-                  boxShadow: isFrontier ? `0 0 8px ${st.border}33` : 'none',
+                  boxShadow: isExpanded ? `0 0 8px ${st.border}44` : 'none',
                   transition: 'border-color 0.15s, box-shadow 0.15s',
                 }}
               >
@@ -260,11 +292,11 @@ export default function GraphView({ nodes, edges }) {
                     {n.type}
                   </span>
                   <span style={{ color: '#475569' }}>D{n.depth}</span>
-                  {hasMore && (
+                  {hasChildren && !isExpanded && (
                     <span style={{ color: st.border, marginLeft: 'auto', fontSize: 13, lineHeight: 1 }}>▸</span>
                   )}
-                  {!hasMore && n.depth > 1 && isFrontier && max === n.depth && (
-                    <span style={{ color: '#334155', marginLeft: 'auto', fontSize: 11 }}>▾</span>
+                  {isExpanded && (
+                    <span style={{ color: st.border, marginLeft: 'auto', fontSize: 11, lineHeight: 1 }}>▾</span>
                   )}
                 </div>
               </div>
