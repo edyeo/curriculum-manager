@@ -30,8 +30,19 @@ def write_nodes(nodes: list[dict]) -> None:
     _write(NODES_FILE, nodes)
 
 
+def _edge_id(e: dict) -> str:
+    """edge 고유 ID: schema에 id 없으면 source:target:relation으로 생성"""
+    if "id" in e:
+        return e["id"]
+    return f"{e.get('source_id','')}:{e.get('target_id','')}:{e.get('relation_type','')}"
+
+
 def read_edges() -> list[dict]:
-    return _read(EDGES_FILE)
+    edges = _read(EDGES_FILE)
+    for e in edges:
+        if "id" not in e:
+            e["id"] = _edge_id(e)
+    return edges
 
 
 def write_edges(edges: list[dict]) -> None:
