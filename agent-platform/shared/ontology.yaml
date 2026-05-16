@@ -4,6 +4,12 @@ description: "공학 커리큘럼 생성을 위한 지식 그래프 온톨로지
 
 # ── Entity 정의 ──────────────────────────────────────────────────
 entities:
+  System:
+    description: |
+      실제로 구축·운영되는 소프트웨어 시스템 또는 플랫폼.
+      여러 Seed(문제 공간)에 의존하며, 구체적인 기술 스택과 개념이 조합된 결과물.
+    depth_range: [1, 3]
+
   Seed:
     description: |
       해결되지 않은 공학적 문제 공간.
@@ -27,6 +33,7 @@ entities:
     description: |
       추상적 개념, 설계 원칙, 또는 아키텍처 패턴.
       특정 기술 구현이 아닌, 여러 구현에 걸쳐 적용될 수 있는 일반 원리.
+      아키텍처 패턴인 경우 다수의 TechStack과 m:n으로 연결될 수 있다.
     depth_range: [1, 3]
 
   TechStack:
@@ -37,20 +44,33 @@ entities:
 
 # ── Relation 정의 ────────────────────────────────────────────────
 relations:
+  relied_on:
+    description: "시스템 A는 문제 공간 B에 의존한다 (이 시스템이 다뤄야 할 핵심 문제)."
+    valid_pairs:
+      - [System, Seed]
+    note: "System entity 전용. 현재 데이터에는 미반영."
+
+  has_subtopic:
+    description: "A는 B를 하위 주제로 포함한다 (동일 타입 내 부모→자식 계층)."
+    valid_pairs:
+      - [System, System]
+      - [Seed, Seed]
+      - [Concept, Concept]
+      - [TechStack, TechStack]
+
   requires:
-    description: "A를 이해하거나 해결하려면 B가 선행되어야 한다."
+    description: "이 문제(Seed)를 이해하거나 다루려면 이 개념(Concept)이 필요하다."
     valid_pairs:
       - [Seed, Concept]
-      - [Concept, Concept]
-      - [TechStack, Concept]
+    note: "m:n 허용. 하나의 Seed가 여러 Concept을 요구할 수 있고, 하나의 Concept이 여러 Seed에 연결될 수 있다."
 
   implemented_by:
     description: "추상적 개념 A는 구체적 기술 B로 구현된다."
     valid_pairs:
       - [Concept, TechStack]
+    note: "m:n 허용. 아키텍처 패턴 Concept의 경우 다수의 TechStack과 연결 가능."
 
-  evolves_to:
-    description: "A는 B로 심화·발전되거나, A를 해결하면 B 문제가 드러난다."
-    valid_pairs:
-      - [Seed, Seed]
-      - [Concept, Concept]
+  prerequisite:
+    description: "A를 학습하기 전에 B를 먼저 알아야 한다 (선수지식)."
+    valid_pairs: []
+    note: "향후 정의 예정. 현재 미사용."
