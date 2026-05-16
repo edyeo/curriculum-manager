@@ -1,0 +1,30 @@
+# Worktree 전용 볼륨 오버라이드
+# WORKTREE_ROOT 변수는 --env-file .env.local 에서 주입된다.
+# worktree-up.sh 가 .env.local 에 WORKTREE_ROOT 를 자동 설정한다.
+#
+# 직접 실행 시:
+#   cd agent-platform/infra
+#   bash worktree-up.sh
+
+version: '3.9'
+
+services:
+  curriculum-manager:
+    volumes:
+      - ${WORKTREE_ROOT}/agent-platform/agents/curriculum-manager:/app/agents/curriculum-manager
+      - ${WORKTREE_ROOT}/agent-platform/shared:/app/shared
+      - ${WORKTREE_ROOT}/nodes.json:/app/nodes.json
+      - ${WORKTREE_ROOT}/edges.json:/app/edges.json
+
+  contents-manager-backend:
+    volumes:
+      - ${WORKTREE_ROOT}/contents-manager/backend:/app
+      - ${WORKTREE_ROOT}/nodes.json:/app/data/nodes.json
+      - ${WORKTREE_ROOT}/edges.json:/app/data/edges.json
+
+  contents-manager-frontend:
+    environment:
+      API_PROXY_TARGET: http://contents-manager-backend:8010
+    volumes:
+      - ${WORKTREE_ROOT}/contents-manager/frontend:/app
+      - /app/node_modules

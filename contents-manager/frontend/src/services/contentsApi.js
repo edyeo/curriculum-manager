@@ -61,6 +61,10 @@ export const generateCurriculum = (subjectId) =>
 export const expandCurriculum = (subjectId) =>
   fetch(`${BASE}/subjects/${subjectId}/curriculum/expand`, { method: 'POST', headers: headers() }).then(handle)
 
+// AI Link
+export const aiLinkCurriculum = (subjectId, payload) =>
+  fetch(`${BASE}/subjects/${subjectId}/curriculum/link-ai`, { method: 'POST', headers: headers(), body: JSON.stringify(payload) }).then(handle)
+
 // Research
 export const startResearch = (subjectId) =>
   fetch(`${BASE}/subjects/${subjectId}/research/start`, { method: 'POST', headers: headers() }).then(handle)

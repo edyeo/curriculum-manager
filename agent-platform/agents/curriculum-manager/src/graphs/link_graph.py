@@ -21,6 +21,7 @@ class LinkState(TypedDict):
     source_nodes: list[Entity]
     target_nodes: list[Entity]
     new_edges: list[Edge]
+    edge_type_constraint: str | None
 
 
 def link_node(state: LinkState) -> dict:
@@ -49,6 +50,12 @@ def link_node(state: LinkState) -> dict:
         indent=2,
     )
 
+    constraint = state.get("edge_type_constraint")
+    constraint_text = (
+        f"\n\n[중요] 반드시 '{constraint}' 타입의 엣지만 생성하세요. 다른 relation_type은 사용하지 마세요."
+        if constraint else ""
+    )
+
     messages = [
         SystemMessage(content=skill),
         HumanMessage(
@@ -56,6 +63,7 @@ def link_node(state: LinkState) -> dict:
                 f"## Source 노드 ({state['source_type']})\n{source_json}\n\n"
                 f"## Target 노드 ({state['target_type']})\n{target_json}\n\n"
                 "위 두 그룹 간의 논리적 관계를 추론하여 Edge 목록을 생성하세요."
+                + constraint_text
             )
         ),
     ]

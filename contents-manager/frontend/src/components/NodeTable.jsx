@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 const TYPES = ['Seed', 'Concept', 'TechStack']
 const DEPTHS = [1, 2, 3]
 
-export default function NodeTable({ nodes, onSelectNode, selectedNodeId, onAddNode, onGenerate, generating, onExpand, expanding }) {
+export default function NodeTable({ nodes, onSelectNode, selectedNodeId, onAddNode, onGenerate, generating, onExpand, expanding, onAiLink, aiLinking }) {
   const [typeFilter, setTypeFilter] = useState('')
   const [depthFilter, setDepthFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -37,8 +37,11 @@ export default function NodeTable({ nodes, onSelectNode, selectedNodeId, onAddNo
         <button className="btn-generate" onClick={onGenerate} disabled={generating || expanding}>
           {generating ? 'AI 초안 생성 중...' : 'AI 초안 생성'}
         </button>
-        <button className="btn-expand" onClick={onExpand} disabled={expanding || generating}>
+        <button className="btn-expand" onClick={onExpand} disabled={expanding || generating || aiLinking}>
           {expanding ? 'AI 확장 중...' : 'AI 확장'}
+        </button>
+        <button className="btn-ai-link" onClick={onAiLink} disabled={aiLinking || generating || expanding}>
+          {aiLinking ? 'Link 생성 중...' : 'link 추가(AI)'}
         </button>
         <button className="btn-add-node" onClick={() => setAdding(true)} disabled={adding}>+ 노드 추가</button>
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>

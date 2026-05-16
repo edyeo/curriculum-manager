@@ -43,3 +43,6 @@ htmlcov/
 
 # LangChain / LangSmith 캐시
 .langchain.db
+
+# Worktree 전용 (경로가 워크트리마다 다름 — worktree-up.sh 가 자동 관리)
+agent-platform/infra/docker-compose.worktree.yml

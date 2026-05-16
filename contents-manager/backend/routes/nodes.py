@@ -225,6 +225,37 @@ async def generate_draft(
     return {"status": "generated", "nodes_added": node_count}
 
 
+# ── AI Link ─────────────────────────────────────────────────────────────────
+
+class AiLinkRequest(BaseModel):
+    source_type: Optional[str] = None
+    source_depth: Optional[int] = None
+    source_node_id: Optional[str] = None
+    target_type: Optional[str] = None
+    target_depth: Optional[int] = None
+    edge_type: Optional[str] = None
+
+
+@router.post("/curriculum/link-ai")
+async def link_ai(
+    subject_id: str,
+    req: AiLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_utils.get_current_user),
+):
+    _get_subject_or_404(subject_id, db)
+    before_edge_ids = {e["id"] for e in file_db.read_edges()}
+
+    await gateway_client.link_ai_curriculum(req.model_dump(exclude_none=True))
+
+    new_edge_ids = {e["id"] for e in file_db.read_edges()} - before_edge_ids
+    for eid in new_edge_ids:
+        db.add(SubjectEdge(subject_id=subject_id, edge_id=eid))
+    db.commit()
+
+    return {"status": "success", "edges_added": len(new_edge_ids)}
+
+
 # ── AI Expand ───────────────────────────────────────────────────────────────
 
 @router.post("/curriculum/expand")
