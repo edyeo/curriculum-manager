@@ -58,6 +58,10 @@ class NodeOutput(BaseModel):
     name: str = Field(description="엔터티의 이름")
     description: str = Field(description="엔터티에 대한 2-3문장 설명")
     depth: Literal[1, 2, 3] = Field(description="추상화 레벨: 1=고수준/범주, 2=중간, 3=구체적/특정")
+    parent_name: str | None = Field(
+        default=None,
+        description="부모 노드의 name (depth=2이면 동일 타입의 depth=1 노드 이름, depth=3이면 depth=2 노드 이름, depth=1이면 null)"
+    )
     metadata: dict = Field(default_factory=dict, description="추가 메타데이터")
 
 

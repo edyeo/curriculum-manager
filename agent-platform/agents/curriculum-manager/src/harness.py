@@ -1,7 +1,7 @@
 """
 PassIterationHarness: 세 트리거의 진입점 디스패처
 """
-from shared.schemas import EntityType, GraphState
+from shared.schemas import EntityType, GraphState, Edge, RelationType
 from shared.state_manager import load_nodes, load_edges, save_nodes, save_edges, load_state, snapshot_work
 from agents.curriculum_manager.src.graphs.draft_graph import build_draft_graph
 from agents.curriculum_manager.src.graphs.link_graph import build_link_graph
@@ -20,13 +20,26 @@ class PassIterationHarness:
         result = graph.invoke({"subject": subject, "nodes": []})
 
         self.nodes = result["nodes"]
-        self.edges = []          # DRAFT 시 엣지 초기화 (독립성 보장)
+        self.edges = []
+
+        # parent_name 기반 has_subtopic edge 자동 생성
+        name_to_id = {n.name: n.id for n in self.nodes}
+        for node in self.nodes:
+            parent_name = node.metadata.pop("_parent_name", None)
+            if parent_name and parent_name in name_to_id:
+                self.edges.append(Edge(
+                    source_id=name_to_id[parent_name],
+                    target_id=node.id,
+                    relation_type=RelationType("has_subtopic"),
+                    logic_basis=f"{parent_name} has {node.name} as a subtopic.",
+                    created_by_trigger="T1_DRAFT",
+                ))
 
         save_nodes(self.nodes)
-        save_edges(self.edges)   # edges.json도 빈 상태로 초기화
+        save_edges(self.edges)
         snapshot_work(self.nodes, self.edges, trigger="T1_DRAFT", subject=subject)
 
-        print(f"✅ DRAFT 완료: 총 {len(self.nodes)}개 노드 (edges 초기화)")
+        print(f"✅ DRAFT 완료: 총 {len(self.nodes)}개 노드, {len(self.edges)}개 has_subtopic edge")
 
     def trigger_link(self, source_type: str, target_type: str) -> None:
         """Phase 2: 지정된 두 타입 간 Pairwise 엣지 생성 → edges.json 저장"""
