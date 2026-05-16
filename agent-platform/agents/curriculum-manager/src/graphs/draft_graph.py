@@ -46,24 +46,31 @@ def _make_agent_node(entity_type: EntityType, skill_file: str):
                     "각 노드의 depth는 추상화 수준에 따라 직접 결정하세요:\n"
                     "  depth=1: 고수준/범주적 개념 (예: '메시지 큐')\n"
                     "  depth=2: 중간 수준 (예: '분산 로그 기반 브로커')\n"
-                    "  depth=3: 구체적/특정 (예: 'Apache Kafka')"
+                    "  depth=3: 구체적/특정 (예: 'Apache Kafka')\n\n"
+                    "parent_name 규칙 (has_subtopic 계층 구성용):\n"
+                    "  depth=1: parent_name=null\n"
+                    "  depth=2: 이 노드를 포함하는 동일 타입 depth=1 노드의 name\n"
+                    "  depth=3: 이 노드를 포함하는 동일 타입 depth=2 노드의 name\n"
+                    "  반드시 같은 응답 안에서 생성한 노드의 name을 참조할 것."
                 )
             ),
         ]
 
         result: NodeGenerationOutput = structured_llm.invoke(messages)
 
-        entities = [
-            Entity(
+        entities = []
+        for node in result.nodes[:MAX_NODES_PER_TYPE]:
+            meta = dict(node.metadata)
+            if node.parent_name:
+                meta["_parent_name"] = node.parent_name
+            entities.append(Entity(
                 type=entity_type,
                 depth=node.depth,
                 name=node.name,
                 description=node.description,
-                metadata=node.metadata,
+                metadata=meta,
                 created_by_trigger="T1_DRAFT",
-            )
-            for node in result.nodes[:MAX_NODES_PER_TYPE]
-        ]
+            ))
 
         depth_summary = {}
         for e in entities:
