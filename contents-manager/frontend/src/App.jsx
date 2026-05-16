@@ -182,7 +182,7 @@ export default function App() {
             <div className="modal-actions">
               <button className="btn-cancel" onClick={() => setShowCreate(false)}>취소</button>
               <button className="btn-primary" onClick={handleCreateSubject} disabled={creating || !newName.trim()}>
-                {creating ? 'AI 생성 중...' : '생성'}
+                {creating ? '생성 중...' : '생성'}
               </button>
             </div>
           </div>

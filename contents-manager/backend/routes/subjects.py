@@ -43,7 +43,7 @@ def list_subjects(
 
 
 @router.post("")
-async def create_subject(
+def create_subject(
     req: SubjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_utils.get_current_user),
@@ -52,31 +52,8 @@ async def create_subject(
     subject = Subject(id=subject_id, name=req.name, description=req.description, owner_id=current_user.id)
     db.add(subject)
     db.commit()
-
-    # Snapshot node/edge IDs before generation
-    before_node_ids = {n["id"] for n in file_db.read_nodes()}
-    before_edge_ids = {e["id"] for e in file_db.read_edges()}
-
-    try:
-        await gateway_client.generate_curriculum(req.name, req.description or "")
-    except Exception:
-        # Generation failed — subject still created, just empty
-        db.refresh(subject)
-        return _subject_to_dict(subject, 0)
-
-    # Register newly created nodes/edges to this subject
-    after_node_ids = {n["id"] for n in file_db.read_nodes()}
-    after_edge_ids = {e["id"] for e in file_db.read_edges()}
-
-    for nid in (after_node_ids - before_node_ids):
-        db.add(SubjectNode(subject_id=subject_id, node_id=nid))
-    for eid in (after_edge_ids - before_edge_ids):
-        db.add(SubjectEdge(subject_id=subject_id, edge_id=eid))
-    db.commit()
-
-    node_count = db.query(SubjectNode).filter(SubjectNode.subject_id == subject_id).count()
     db.refresh(subject)
-    return _subject_to_dict(subject, node_count)
+    return _subject_to_dict(subject, 0)
 
 
 @router.get("/{subject_id}")
