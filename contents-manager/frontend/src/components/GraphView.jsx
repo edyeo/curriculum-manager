@@ -71,13 +71,19 @@ export default function GraphView({ nodes, edges }) {
     return map
   }, [edges])
 
-  // Compute visible node IDs via BFS: depth=1 roots are always visible,
-  // then expand through edges for each expanded node
+  // Compute visible node IDs:
+  // - expandedNodes empty → overview: all depth=1 nodes
+  // - otherwise → only depth=1 nodes in expandedNodes + their subtrees via expanded edges
   const visibleIds = useMemo(() => {
+    if (expandedNodes.size === 0) {
+      return new Set(nodes.filter(n => n.depth === 1).map(n => n.id))
+    }
+
     const visible = new Set()
     for (const n of nodes) {
-      if (n.depth === 1) visible.add(n.id)
+      if (n.depth === 1 && expandedNodes.has(n.id)) visible.add(n.id)
     }
+
     let changed = true
     while (changed) {
       changed = false
