@@ -72,18 +72,13 @@ export default function GraphView({ nodes, edges }) {
   }, [edges])
 
   // Compute visible node IDs:
-  // - expandedNodes empty → overview: all depth=1 nodes
-  // - otherwise → only depth=1 nodes in expandedNodes + their subtrees via expanded edges
+  // depth=1 nodes are always visible (mindmap roots).
+  // depth=2+ nodes appear only when their parent is in expandedNodes.
   const visibleIds = useMemo(() => {
-    if (expandedNodes.size === 0) {
-      return new Set(nodes.filter(n => n.depth === 1).map(n => n.id))
-    }
-
     const visible = new Set()
     for (const n of nodes) {
-      if (n.depth === 1 && expandedNodes.has(n.id)) visible.add(n.id)
+      if (n.depth === 1) visible.add(n.id)
     }
-
     let changed = true
     while (changed) {
       changed = false
