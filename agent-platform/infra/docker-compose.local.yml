@@ -185,7 +185,8 @@ services:
     environment:
       AGENT: grader
       PORT: 8005
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
       LOG_LEVEL: DEBUG
     ports:
       - "8005:8005"
@@ -301,6 +302,8 @@ services:
       context: ../../student-platform/frontend
       dockerfile: Dockerfile
     container_name: student-platform-frontend
+    environment:
+      API_PROXY_TARGET: http://student-platform-backend:8020
     ports:
       - "3001:3001"
     depends_on:

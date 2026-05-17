@@ -7,7 +7,7 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
-        target: 'http://localhost:8020',
+        target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:8020',
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },

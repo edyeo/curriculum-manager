@@ -1,15 +1,16 @@
 """Grader Agent — LLM-based answer grading service.
 
 MULTIPLE_CHOICE: exact string comparison, no LLM.
-SHORT_ANSWER / DESCRIPTIVE: Claude API call.
+SHORT_ANSWER / DESCRIPTIVE: OpenAI ChatCompletion (same model as other agents).
 """
 import json
 import os
 from typing import Literal
 
-import anthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, field_validator
 
 app = FastAPI(title="Grader Agent", version="0.1.0")
@@ -21,17 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY is not set")
-        _client = anthropic.Anthropic(api_key=api_key)
-    return _client
+SYSTEM_PROMPT = """당신은 공학 커리큘럼의 문제 채점 전문가입니다.
+학생 답안을 모범 답안과 비교해 객관적으로 채점하고, JSON으로만 응답합니다.
+다른 텍스트는 절대 포함하지 마세요."""
 
 
 class GradeRequest(BaseModel):
@@ -65,30 +58,32 @@ def _grade_multiple_choice(correct: str, user: str) -> GradeResponse:
 
 
 async def _grade_with_llm(req: GradeRequest) -> GradeResponse:
-    prompt = f"""다음 문제의 학생 답안을 채점하세요.
+    llm = ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        temperature=0.0,
+    )
+
+    user_message = f"""다음 문제의 학생 답안을 채점하세요.
 
 문제: {req.question_text}
 모범 답안: {req.correct_answer}
 참고 해설: {req.explanation}
 학생 답안: {req.user_answer}
 
-JSON으로만 응답하세요 (다른 텍스트 없이):
+아래 JSON 형식으로만 응답하세요:
 {{"is_correct": true/false, "score": 0.0~1.0, "feedback": "채점 근거 1~2문장"}}
 
 채점 기준:
 - score 1.0: 완전 정답
-- score 0.5~0.9: 부분 정답 (핵심 개념은 맞으나 설명이 불완전)
+- score 0.5~0.9: 부분 정답 (핵심 개념은 맞으나 설명 불완전)
 - score 0.0~0.4: 오답 또는 핵심 개념 누락"""
 
     try:
-        client = _get_client()
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=256,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = message.content[0].text.strip()
-        # strip markdown code fences if present
+        response = llm.invoke([
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=user_message),
+        ])
+        text = response.content.strip()
         if text.startswith("```"):
             text = text.split("```")[1]
             if text.startswith("json"):

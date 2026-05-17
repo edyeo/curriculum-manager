@@ -28,3 +28,16 @@ services:
     volumes:
       - ${WORKTREE_ROOT}/contents-manager/frontend:/app
       - /app/node_modules
+
+  student-platform-backend:
+    volumes:
+      - ${WORKTREE_ROOT}/student-platform/backend:/app
+      - student_db:/app/db
+
+  student-platform-frontend:
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      API_PROXY_TARGET: http://student-platform-backend:8020
+    volumes:
+      - ${WORKTREE_ROOT}/student-platform/frontend:/app
+      - /app/node_modules
