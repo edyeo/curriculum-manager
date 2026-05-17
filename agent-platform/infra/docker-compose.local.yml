@@ -174,6 +174,27 @@ services:
       timeout: 5s
       retries: 3
 
+  # Grader Agent
+  grader:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        AGENT: grader
+    container_name: grader
+    environment:
+      AGENT: grader
+      PORT: 8005
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # API Gateway
   gateway:
     build:
@@ -189,6 +210,7 @@ services:
       MENTAL_MODEL_MANAGER_URL: http://mental-model-manager:8002
       RESEARCHER_URL: http://researcher:8003
       QUESTION_GENERATOR_URL: http://question-generator:8004
+      GRADER_URL: http://grader:8005
       LOG_LEVEL: DEBUG
     ports:
       - "9000:9000"
@@ -197,6 +219,7 @@ services:
       - mental-model-manager
       - researcher
       - question-generator
+      - grader
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 10s
@@ -216,6 +239,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
+      KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
     ports:
       - "8010:8010"
     depends_on:
@@ -246,10 +270,53 @@ services:
       timeout: 5s
       retries: 3
 
+  # Student Platform Backend
+  student-platform-backend:
+    build:
+      context: ../../student-platform/backend
+      dockerfile: Dockerfile
+    container_name: student-platform-backend
+    environment:
+      KG_API_URL: http://contents-manager-backend:8010
+      KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
+      GATEWAY_URL: http://api-gateway:9000
+      STUDENT_JWT_SECRET: ${STUDENT_JWT_SECRET:-student-secret-change-in-prod}
+      DATABASE_URL: sqlite:////app/db/student_platform.db
+    ports:
+      - "8020:8020"
+    depends_on:
+      - contents-manager-backend
+      - gateway
+    volumes:
+      - student_db:/app/db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Student Platform Frontend
+  student-platform-frontend:
+    build:
+      context: ../../student-platform/frontend
+      dockerfile: Dockerfile
+    container_name: student-platform-frontend
+    ports:
+      - "3001:3001"
+    depends_on:
+      - student-platform-backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  student_db:
     driver: local
   research_results:
     driver: local

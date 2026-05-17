@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
@@ -52,3 +52,13 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return current_user
+
+
+# ── Service-to-service auth (KG API) ─────────────────────────────────────────
+
+KG_SERVICE_TOKEN = os.getenv("KG_SERVICE_TOKEN", "")
+
+
+def verify_service_token(x_service_token: str = Header(..., alias="X-Service-Token")):
+    if not KG_SERVICE_TOKEN or x_service_token != KG_SERVICE_TOKEN:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token")

@@ -31,6 +31,7 @@ AGENTS = {
     "mental-models": os.getenv("MENTAL_MODEL_URL", "http://mental-model-manager:8002"),
     "research": os.getenv("RESEARCH_URL", "http://researcher:8003"),
     "questions": os.getenv("QUESTIONS_URL", "http://question-generator:8004"),
+    "grader": os.getenv("GRADER_URL", "http://grader:8005"),
 }
 
 
@@ -161,6 +162,18 @@ async def generate_curriculum(request: CurriculumGenerationRequest):
 
 
 # ========== Proxy Routes (에이전트 API 직접 호출) ==========
+
+@app.post("/grade")
+async def grade_answer(request: Request):
+    """학생 답안 채점 — grader 에이전트로 프록시."""
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.post(f"{AGENTS['grader']}/grade", json=body)
+            return response.json()
+        except httpx.ConnectError:
+            raise HTTPException(status_code=503, detail="Grader service unavailable")
+
 
 @app.api_route("/proxy/{agent}/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy(agent: str, path: str, request: Request):
