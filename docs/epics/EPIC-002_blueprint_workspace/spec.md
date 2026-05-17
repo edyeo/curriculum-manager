@@ -22,9 +22,27 @@
 
 ## 온톨로지 연동
 
-**단일 진실 공급원(SSOT):** `agent-platform/shared/ontology.yaml`의 `entities` 블록이 전체 시스템에서 노드 타입(레이어)의 유일한 정의다. Blueprint의 매트릭스 행(layer)은 이 파일에서 동적으로 읽어야 한다. 새 엔티티 타입이 추가되거나 이름이 변경될 경우 Blueprint도 자동으로 반영된다.
+### 온톨로지의 역할 범위
 
-현재 `contents-manager`의 문제점: `NodeTable.jsx`, `AiLinkModal.jsx`, `GraphView.jsx`, `routes/nodes.py` 등이 타입을 각자 하드코딩하고 있다. Blueprint 구현과 함께 백엔드에 온톨로지 로더를 추가하고 프론트엔드는 이를 통해 타입을 조회한다.
+`agent-platform/shared/ontology.yaml`은 전체 시스템에서 노드 타입(레이어)의 단일 진실 공급원이다. 단, Blueprint에 대한 온톨로지의 역할은 아래 두 가지로 **제한**한다.
+
+| 역할 | 설명 |
+|---|---|
+| 신규 Blueprint seed 템플릿 | 생성 시 초기 MatrixCell 행을 어떤 레이어로 만들지 결정 |
+| MatrixCell 쓰기 시 유효성 검증 | 새 셀을 추가할 때 `layer` 값이 알려진 엔티티 이름인지 확인 |
+
+**온톨로지가 Blueprint를 지배하지 않는 것:** 한 번 생성된 Blueprint의 matrix는 이후 온톨로지 변경과 무관하게 독립적으로 유지된다. `GET /api/blueprints/{id}`의 matrix 키는 현재 온톨로지가 아닌 **DB에 저장된 MatrixCell의 distinct layer 값**으로 구성한다. 이는 PRD의 Traceability 원칙 ("Blueprint는 독립된 설계 공간") 을 보장하기 위함이다.
+
+### 온톨로지 변경 시나리오별 영향
+
+| 변경 종류 | 기존 Blueprint | 신규 Blueprint |
+|---|---|---|
+| 엔티티 **추가** (예: "Framework") | 영향 없음. "Framework" 행 미포함 상태 유지 | 새 레이어 행 포함하여 생성 |
+| 엔티티 **삭제** (예: "System") | 영향 없음. 기존 "System" 셀 그대로 반환 | "System" 행 없이 생성. 새 셀 추가 시도 시 400 |
+| 엔티티 **이름 변경** | **위험.** DB의 기존 layer 값이 구 이름 그대로 — 검증 통과 불가, 새 셀 추가 불가 | 새 이름 기준으로 생성 |
+| 설명(description)만 변경 | 영향 없음 | 영향 없음 |
+
+엔티티 이름 변경은 기존 Blueprint의 MatrixCell을 사실상 고아(orphan) 상태로 만든다. **온톨로지에서 엔티티 이름은 변경하지 않는 것이 원칙이다.** 이름 변경이 불가피할 경우 DB 마이그레이션 스크립트로 `matrix_cells.layer` 값을 함께 일괄 수정해야 한다.
 
 ### 온톨로지 로더 — `contents-manager/backend/ontology.py`
 
@@ -43,9 +61,11 @@ def load_ontology() -> dict:
         return yaml.safe_load(f)
 
 def get_entity_names() -> list[str]:
-    """ontology.yaml entities 블록의 키 목록 반환."""
+    """ontology.yaml entities 블록의 키 목록 반환. 서버 시작 시 1회 로드·캐시."""
     return list(load_ontology()["entities"].keys())
 ```
+
+`lru_cache`는 프로세스 수명 동안 1회만 로드한다. 온톨로지 변경 후에는 **컨테이너 재시작이 필요**하다. 로컬 개발 중 변경이 잦으면 `uvicorn --reload` 사용 시 자동 갱신된다.
 
 Docker 컨테이너에서는 `ONTOLOGY_PATH` 환경변수로 경로를 주입한다.  
 `docker-compose.local.yml`에 `contents-manager-backend` 서비스에 아래를 추가:
@@ -200,7 +220,7 @@ def _seed_matrix(blueprint_id: str, db: Session):
 }
 ```
 
-`matrix`의 키는 `get_entity_names()`가 반환한 목록과 동일하게 구성된다. 현재 온톨로지 기준 `System, Seed, Concept, TechStack` 4개.
+`matrix`의 키는 해당 Blueprint의 `matrix_cells` 테이블에서 `SELECT DISTINCT layer`로 조회한 값들로만 구성된다. 현재 온톨로지와 무관하게 DB에 저장된 것만 반환한다.
 
 ### MatrixCell 조작
 
@@ -304,8 +324,9 @@ export const deleteIntegration = (blueprintId, itemId) => ...
 - [ ] `GET /api/ontology/entities` → 온톨로지 엔티티 목록 반환 (인증 불필요)
 - [ ] `ONTOLOGY_PATH` 환경변수로 yaml 경로 오버라이드 가능
 - [ ] `POST /api/blueprints` → 온톨로지 엔티티 수 × 기본 레이블 수만큼 MatrixCell 자동 생성
-- [ ] `GET /api/blueprints/{id}` → matrix 키가 온톨로지 엔티티 목록과 일치
+- [ ] `GET /api/blueprints/{id}` → matrix 키가 DB의 distinct layer 값과 일치 (온톨로지 현재 상태와 무관)
 - [ ] 온톨로지에 없는 layer 값으로 셀 추가 시 400 반환
+- [ ] 온톨로지에 존재하지 않는 layer의 기존 셀은 조회·수정·삭제 가능 (소급 무효화 없음)
 - [ ] 마지막 셀 삭제 시 400 반환
 - [ ] `DELETE /api/blueprints/{id}` soft delete — 목록 재조회 시 제외
 
