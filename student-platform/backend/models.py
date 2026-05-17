@@ -1,0 +1,39 @@
+from datetime import datetime
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from database import Base
+
+
+class Student(Base):
+    __tablename__ = "students"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    hashed_pw = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class NodeMastery(Base):
+    __tablename__ = "node_mastery"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    node_id = Column(String, nullable=False)       # KG 외부 참조
+    subject_id = Column(String, nullable=False)    # KG 외부 참조
+    mastery_score = Column(Float, default=0.5)
+    attempt_count = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("student_id", "node_id", name="uq_student_node"),)
+
+
+class StudySession(Base):
+    __tablename__ = "study_sessions"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    question_id = Column(String, nullable=False)   # question-generator 외부 참조
+    node_id = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    user_answer = Column(Text)
+    is_correct = Column(Boolean)
+    score = Column(Float)
+    feedback = Column(Text)
+    time_taken_seconds = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)

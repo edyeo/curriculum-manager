@@ -15,6 +15,9 @@ case "$AGENT" in
   gateway)
     exec uvicorn apps.gateway:app --host 0.0.0.0 --port ${PORT:-9000}
     ;;
+  grader)
+    exec uvicorn apps.grader.main:app --host 0.0.0.0 --port ${PORT:-8005}
+    ;;
   *)
     echo "Unknown AGENT: $AGENT"
     exit 1
