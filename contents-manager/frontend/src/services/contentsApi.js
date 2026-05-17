@@ -86,3 +86,36 @@ export const getQuestions = (subjectId, nodeId) =>
 
 export const generateQuestions = (subjectId, nodeId, count = 5) =>
   fetch(`${BASE}/subjects/${subjectId}/nodes/${nodeId}/questions`, { method: 'POST', headers: headers(), body: JSON.stringify({ count }) }).then(handle)
+
+// Blueprints
+export const getBlueprints = () =>
+  fetch(`${BASE}/blueprints`, { headers: headers() }).then(handle)
+
+export const createBlueprint = (name, description) =>
+  fetch(`${BASE}/blueprints`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, description }) }).then(handle)
+
+export const getBlueprint = (id) =>
+  fetch(`${BASE}/blueprints/${id}`, { headers: headers() }).then(handle)
+
+export const updateBlueprint = (id, patch) =>
+  fetch(`${BASE}/blueprints/${id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify(patch) }).then(handle)
+
+export const deleteBlueprint = (id) =>
+  fetch(`${BASE}/blueprints/${id}`, { method: 'DELETE', headers: headers() }).then(handle)
+
+// MatrixCell
+export const addMatrixCell = (blueprintId, layer, label) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/cells`, { method: 'POST', headers: headers(), body: JSON.stringify({ layer, label }) }).then(handle)
+
+export const updateMatrixCell = (blueprintId, cellId, label) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/cells/${cellId}`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ label }) }).then(handle)
+
+export const deleteMatrixCell = (blueprintId, cellId) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/cells/${cellId}`, { method: 'DELETE', headers: headers() }).then(handle)
+
+// IntegrationItem
+export const addIntegration = (blueprintId, name, combinations) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/integrations`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, combinations }) }).then(handle)
+
+export const deleteIntegration = (blueprintId, itemId) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/integrations/${itemId}`, { method: 'DELETE', headers: headers() }).then(handle)

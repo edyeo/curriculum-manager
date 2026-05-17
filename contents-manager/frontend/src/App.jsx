@@ -5,6 +5,7 @@ import NodePanel from './components/NodePanel.jsx'
 import GraphView from './components/GraphView.jsx'
 import ResearchTab from './components/ResearchTab.jsx'
 import AiLinkModal from './components/AiLinkModal.jsx'
+import BlueprintTab from './components/BlueprintTab.jsx'
 import * as api from './services/contentsApi.js'
 
 export default function App() {
@@ -140,16 +141,18 @@ export default function App() {
 
       {/* Tabs */}
       <nav className="tab-nav">
-        {['editor', 'graph', 'research'].map(t => (
+        {['editor', 'graph', 'research', 'blueprint'].map(t => (
           <button key={t} className={`tab-btn ${currentTab === t ? 'active' : ''}`} onClick={() => setCurrentTab(t)}>
-            {t === 'editor' ? '편집' : t === 'graph' ? '그래프' : '리서치'}
+            {t === 'editor' ? '편집' : t === 'graph' ? '그래프' : t === 'research' ? '리서치' : 'Blueprint'}
           </button>
         ))}
       </nav>
 
       {/* Main */}
       <main className="app-main">
-        {!selectedSubjectId ? (
+        {currentTab === 'blueprint' ? (
+          <BlueprintTab />
+        ) : !selectedSubjectId ? (
           <div className="no-subject">Subject를 선택하거나 새로 만드세요.</div>
         ) : (
           <>
