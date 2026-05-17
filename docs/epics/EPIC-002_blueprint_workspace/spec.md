@@ -20,84 +20,22 @@
 
 ---
 
-## 온톨로지 연동
+## 레이어 타입 관리 (임시)
 
-### 온톨로지의 역할 범위
+Blueprint의 MatrixCell `layer` 값은 `agent-platform/shared/ontology.yaml`의 entities 키와 동일해야 한다. 그러나 온톨로지 API 연동(EPIC-004)은 이 Epic의 범위 밖이다.
 
-`agent-platform/shared/ontology.yaml`은 전체 시스템에서 노드 타입(레이어)의 단일 진실 공급원이다. 단, Blueprint에 대한 온톨로지의 역할은 아래 두 가지로 **제한**한다.
-
-| 역할 | 설명 |
-|---|---|
-| 신규 Blueprint seed 템플릿 | 생성 시 초기 MatrixCell 행을 어떤 레이어로 만들지 결정 |
-| MatrixCell 쓰기 시 유효성 검증 | 새 셀을 추가할 때 `layer` 값이 알려진 엔티티 이름인지 확인 |
-
-**온톨로지가 Blueprint를 지배하지 않는 것:** 한 번 생성된 Blueprint의 matrix는 이후 온톨로지 변경과 무관하게 독립적으로 유지된다. `GET /api/blueprints/{id}`의 matrix 키는 현재 온톨로지가 아닌 **DB에 저장된 MatrixCell의 distinct layer 값**으로 구성한다. 이는 PRD의 Traceability 원칙 ("Blueprint는 독립된 설계 공간") 을 보장하기 위함이다.
-
-### 온톨로지 변경 시나리오별 영향
-
-| 변경 종류 | 기존 Blueprint | 신규 Blueprint |
-|---|---|---|
-| 엔티티 **추가** (예: "Framework") | 영향 없음. "Framework" 행 미포함 상태 유지 | 새 레이어 행 포함하여 생성 |
-| 엔티티 **삭제** (예: "System") | 영향 없음. 기존 "System" 셀 그대로 반환 | "System" 행 없이 생성. 새 셀 추가 시도 시 400 |
-| 엔티티 **이름 변경** | **위험.** DB의 기존 layer 값이 구 이름 그대로 — 검증 통과 불가, 새 셀 추가 불가 | 새 이름 기준으로 생성 |
-| 설명(description)만 변경 | 영향 없음 | 영향 없음 |
-
-엔티티 이름 변경은 기존 Blueprint의 MatrixCell을 사실상 고아(orphan) 상태로 만든다. **온톨로지에서 엔티티 이름은 변경하지 않는 것이 원칙이다.** 이름 변경이 불가피할 경우 DB 마이그레이션 스크립트로 `matrix_cells.layer` 값을 함께 일괄 수정해야 한다.
-
-### 온톨로지 로더 — `contents-manager/backend/ontology.py`
+이 Epic에서는 `blueprints.py` 라우터 내에 `VALID_LAYERS` 상수를 정의하고 seed·검증에 사용한다.
 
 ```python
-import os, yaml
-from functools import lru_cache
-
-ONTOLOGY_PATH = os.getenv(
-    "ONTOLOGY_PATH",
-    os.path.join(os.path.dirname(__file__), "../../agent-platform/shared/ontology.yaml")
-)
-
-@lru_cache(maxsize=1)
-def load_ontology() -> dict:
-    with open(ONTOLOGY_PATH) as f:
-        return yaml.safe_load(f)
-
-def get_entity_names() -> list[str]:
-    """ontology.yaml entities 블록의 키 목록 반환. 서버 시작 시 1회 로드·캐시."""
-    return list(load_ontology()["entities"].keys())
+# EPIC-004 완료 후 ontology.get_entity_names() 호출로 교체 예정
+VALID_LAYERS: list[str] = ["System", "Seed", "Concept", "TechStack"]
 ```
 
-`lru_cache`는 프로세스 수명 동안 1회만 로드한다. 온톨로지 변경 후에는 **컨테이너 재시작이 필요**하다. 로컬 개발 중 변경이 잦으면 `uvicorn --reload` 사용 시 자동 갱신된다.
+- MatrixCell 추가 시 `layer` 값이 `VALID_LAYERS`에 없으면 400 반환
+- Blueprint 생성 시 `VALID_LAYERS` 순서대로 seed
+- 온톨로지에 새 엔티티가 추가될 경우 `VALID_LAYERS`도 수동으로 함께 갱신한다
 
-Docker 컨테이너에서는 `ONTOLOGY_PATH` 환경변수로 경로를 주입한다.  
-`docker-compose.local.yml`에 `contents-manager-backend` 서비스에 아래를 추가:
-
-```yaml
-environment:
-  ONTOLOGY_PATH: /app/ontology.yaml
-volumes:
-  - ../../agent-platform/shared/ontology.yaml:/app/ontology.yaml:ro
-```
-
-### 온톨로지 API 엔드포인트
-
-`routes/ontology.py`를 신규 추가하고 `main.py`에 등록.
-
-```
-GET /api/ontology/entities
-```
-
-응답:
-```json
-{
-  "entities": [
-    { "name": "System",     "description": "..." },
-    { "name": "Seed",       "description": "..." },
-    { "name": "Concept",    "description": "..." },
-    { "name": "TechStack",  "description": "..." }
-  ]
-}
-```
-
-프론트엔드 전반(`NodeTable`, `AiLinkModal`, `BlueprintTab`)이 이 엔드포인트를 통해 타입 목록을 조회한다. 하드코딩된 `const TYPES = [...]` 배열은 모두 제거된다.
+> **EPIC-004 연동 후:** `VALID_LAYERS` 상수를 `ontology.get_entity_names()` 호출로 교체하고, 프론트엔드의 타입 목록도 `GET /api/ontology/entities`로 전환한다. 상세 설계는 [`docs/epics/EPIC-004_ontology_api/feature_requirements.md`](../EPIC-004_ontology_api/feature_requirements.md) 참조.
 
 ---
 
@@ -220,7 +158,7 @@ def _seed_matrix(blueprint_id: str, db: Session):
 }
 ```
 
-`matrix`의 키는 해당 Blueprint의 `matrix_cells` 테이블에서 `SELECT DISTINCT layer`로 조회한 값들로만 구성된다. 현재 온톨로지와 무관하게 DB에 저장된 것만 반환한다.
+`matrix`의 키는 해당 Blueprint의 `matrix_cells` 테이블에서 `SELECT DISTINCT layer`로 조회한 값들로만 구성된다. 현재 `VALID_LAYERS` 상수와 무관하게 DB에 저장된 것만 반환한다.
 
 ### MatrixCell 조작
 
@@ -280,12 +218,9 @@ def _seed_matrix(blueprint_id: str, db: Session):
 
 ### API 클라이언트
 
-`src/services/contentsApi.js`에 함수 추가:
+`src/services/contentsApi.js`에 Blueprint 관련 함수 추가:
 
 ```js
-// 온톨로지 — 타입 목록 (NodeTable, AiLinkModal, BlueprintTab 공통 사용)
-export const getOntologyEntities = () => ...   // GET /api/ontology/entities
-
 // Blueprint
 export const getBlueprints = () => ...
 export const createBlueprint = (name, description) => ...
@@ -303,7 +238,7 @@ export const addIntegration = (blueprintId, name, combinations) => ...
 export const deleteIntegration = (blueprintId, itemId) => ...
 ```
 
-`BlueprintTab` 진입 시 `getOntologyEntities()`를 호출해 레이어 목록을 받아온다. `NodeTable`, `AiLinkModal`의 하드코딩된 `TYPES` 배열도 동일 API 호출로 교체한다 (STORY-002 TICKET-001에서 처리).
+`BlueprintTab`은 레이어 목록을 `VALID_LAYERS`와 동일한 순서로 렌더링한다. `NodeTable`, `AiLinkModal`의 기존 하드코딩은 EPIC-004에서 교체한다.
 
 ---
 
@@ -315,18 +250,14 @@ export const deleteIntegration = (blueprintId, itemId) => ...
 
 | Ticket | 제목 | 파일 |
 |---|---|---|
-| TICKET-001 | 온톨로지 로더 + `/api/ontology/entities` 엔드포인트 | `ontology.py`, `routes/ontology.py`, `main.py`, `docker-compose.local.yml` |
-| TICKET-002 | DB 모델 추가 (Blueprint·MatrixCell·IntegrationItem) | `models.py` |
-| TICKET-003 | Blueprint CRUD 라우터 + MatrixCell seed | `routes/blueprints.py`, `main.py` |
-| TICKET-004 | MatrixCell·IntegrationItem API | `routes/blueprints.py` |
+| TICKET-001 | DB 모델 추가 (Blueprint·MatrixCell·IntegrationItem) | `models.py` |
+| TICKET-002 | Blueprint CRUD 라우터 + MatrixCell seed | `routes/blueprints.py`, `main.py` |
+| TICKET-003 | MatrixCell·IntegrationItem API | `routes/blueprints.py` |
 
 **완료 기준:**
-- [ ] `GET /api/ontology/entities` → 온톨로지 엔티티 목록 반환 (인증 불필요)
-- [ ] `ONTOLOGY_PATH` 환경변수로 yaml 경로 오버라이드 가능
-- [ ] `POST /api/blueprints` → 온톨로지 엔티티 수 × 기본 레이블 수만큼 MatrixCell 자동 생성
-- [ ] `GET /api/blueprints/{id}` → matrix 키가 DB의 distinct layer 값과 일치 (온톨로지 현재 상태와 무관)
-- [ ] 온톨로지에 없는 layer 값으로 셀 추가 시 400 반환
-- [ ] 온톨로지에 존재하지 않는 layer의 기존 셀은 조회·수정·삭제 가능 (소급 무효화 없음)
+- [ ] `POST /api/blueprints` → `VALID_LAYERS` × 기본 레이블 수만큼 MatrixCell 자동 생성
+- [ ] `GET /api/blueprints/{id}` → matrix 키가 DB의 distinct layer 값과 일치
+- [ ] `VALID_LAYERS`에 없는 layer 값으로 셀 추가 시 400 반환
 - [ ] 마지막 셀 삭제 시 400 반환
 - [ ] `DELETE /api/blueprints/{id}` soft delete — 목록 재조회 시 제외
 
@@ -338,13 +269,12 @@ export const deleteIntegration = (blueprintId, itemId) => ...
 
 | Ticket | 제목 | 파일 |
 |---|---|---|
-| TICKET-001 | 탭 등록 + `getOntologyEntities` 추가 + `NodeTable`·`AiLinkModal` 하드코딩 제거 | `App.jsx`, `BlueprintTab.jsx`, `contentsApi.js`, `NodeTable.jsx`, `AiLinkModal.jsx` |
+| TICKET-001 | 탭 등록 + BlueprintTab 뼈대 | `App.jsx`, `BlueprintTab.jsx`, `contentsApi.js` |
 | TICKET-002 | BlueprintList — 목록·생성·삭제 | `BlueprintList.jsx` |
 | TICKET-003 | MatrixGrid — 인라인 편집·추가·삭제 | `BlueprintEditor.jsx`, `MatrixGrid.jsx` |
 | TICKET-004 | IntegrationPanel — 통합 항목 관리 | `IntegrationPanel.jsx` |
 
 **완료 기준:**
-- [ ] `NodeTable`·`AiLinkModal`의 `const TYPES = [...]` 하드코딩 제거 → API 응답으로 대체
 - [ ] 탭 클릭 시 Blueprint 목록 표시
 - [ ] Blueprint 생성 → 온톨로지 엔티티 수만큼 레이어 행이 격자에 표시됨
 - [ ] 셀 클릭 → 인라인 편집 → 저장 → 화면 반영
@@ -357,8 +287,8 @@ export const deleteIntegration = (blueprintId, itemId) => ...
 
 ## 의존성 및 제약
 
-- **신규 패키지:** 백엔드에 `pyyaml` 추가 필요 (`requirements.txt`)
+- **신규 패키지 없음:** 백엔드는 기존 FastAPI/SQLAlchemy 스택, 프론트엔드는 기존 React
 - **DB 마이그레이션:** SQLite 사용 중이므로 `database.py`의 `init_db()`가 `create_all()`로 테이블을 자동 생성 — Alembic 불필요
-- **온톨로지 경로:** 로컬 개발은 상대경로 자동 탐색, Docker는 `ONTOLOGY_PATH` 환경변수 + bind mount로 주입
+- **레이어 타입:** `VALID_LAYERS` 상수로 임시 관리. EPIC-004 완료 후 온톨로지 API 연동으로 교체 (상세: [`EPIC-004 feature_requirements.md`](../EPIC-004_ontology_api/feature_requirements.md))
 - **EPIC-003 연동 준비:** Blueprint_ID 컬럼은 이후 question 테이블이 외래키로 참조할 예정. 현재는 soft delete로 보호
-- **인증:** `/api/ontology/entities`는 인증 불필요 (read-only 정적 스키마). 나머지 Blueprint 엔드포인트는 기존 JWT(`get_current_user`) 사용
+- **인증:** 모든 Blueprint 엔드포인트는 기존 JWT(`get_current_user`) 사용
