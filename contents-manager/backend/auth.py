@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
@@ -62,3 +62,31 @@ KG_SERVICE_TOKEN = os.getenv("KG_SERVICE_TOKEN", "")
 def verify_service_token(x_service_token: str = Header(..., alias="X-Service-Token")):
     if not KG_SERVICE_TOKEN or x_service_token != KG_SERVICE_TOKEN:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token")
+
+
+def get_user_or_service(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """JWT Bearer(CM 사용자) 또는 X-Service-Token(서비스간 호출) 둘 다 허용."""
+    service_token = request.headers.get("X-Service-Token")
+    if service_token:
+        if KG_SERVICE_TOKEN and service_token == KG_SERVICE_TOKEN:
+            return None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token")
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    token = auth_header[7:]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user

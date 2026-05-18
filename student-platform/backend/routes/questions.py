@@ -93,8 +93,11 @@ async def submit_answer(
     if q.get("status") != "published":
         raise HTTPException(404, "Question not found")
 
+    _type_map = {"MCQ": "MULTIPLE_CHOICE", "OX": "MULTIPLE_CHOICE", "short_answer": "SHORT_ANSWER"}
+    grader_type = _type_map.get(q.get("question_type", "MCQ"), "MULTIPLE_CHOICE")
+
     result = await grader_client.grade(
-        question_type=q.get("question_type", "MCQ"),
+        question_type=grader_type,
         question_text=q["question_text"],
         correct_answer=q["correct_answer"],
         user_answer=body.answer,

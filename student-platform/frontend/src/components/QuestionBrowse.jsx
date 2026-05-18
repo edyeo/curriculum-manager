@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { api } from '../services/api'
 
 const DIFF_LABEL = { easy: '쉬움', medium: '보통', hard: '어려움' }
@@ -8,10 +8,12 @@ const TYPE_LABEL = { MCQ: '객관식', OX: 'O/X', short_answer: '단답형' }
 export default function QuestionBrowse({ onSelectQuestion, onBack }) {
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
   const [filters, setFilters] = useState({ blueprint_id: '', difficulty: '', question_type: '' })
 
   const load = useCallback(async () => {
     setLoading(true)
+    setSearched(true)
     try {
       const active = Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
       const res = await api.getPublishedQuestions(active)
@@ -23,8 +25,6 @@ export default function QuestionBrowse({ onSelectQuestion, onBack }) {
     }
   }, [filters])
 
-  useEffect(() => { load() }, [load])
-
   return (
     <div style={S.root}>
       <div style={S.header}>
@@ -32,7 +32,7 @@ export default function QuestionBrowse({ onSelectQuestion, onBack }) {
         <h2 style={S.title}>문제 탐색</h2>
       </div>
 
-      {/* 필터 */}
+      {/* 필터 + 조회 버튼 */}
       <div style={S.filters}>
         <select style={S.select} value={filters.difficulty} onChange={e => setFilters(f => ({ ...f, difficulty: e.target.value }))}>
           <option value="">전체 난이도</option>
@@ -46,10 +46,15 @@ export default function QuestionBrowse({ onSelectQuestion, onBack }) {
           <option value="OX">O/X</option>
           <option value="short_answer">단답형</option>
         </select>
+        <button style={S.searchBtn} onClick={load} disabled={loading}>
+          {loading ? '조회 중…' : '조회'}
+        </button>
       </div>
 
       {/* 목록 */}
-      {loading ? (
+      {!searched ? (
+        <p style={S.hint}>필터를 선택하고 조회 버튼을 누르세요.</p>
+      ) : loading ? (
         <p style={S.hint}>불러오는 중…</p>
       ) : questions.length === 0 ? (
         <p style={S.hint}>출제된 문항이 없습니다.</p>
@@ -82,8 +87,9 @@ const S = {
   header: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 },
   backBtn: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13 },
   title: { margin: 0, fontSize: 20, color: '#2d3748' },
-  filters: { display: 'flex', gap: 8, marginBottom: 16 },
+  filters: { display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' },
   select: { padding: '6px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 },
+  searchBtn: { padding: '6px 18px', background: '#4a90e2', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   hint: { textAlign: 'center', color: '#888', padding: '40px 0' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 },
   card: { padding: '14px 16px', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', background: '#fff', transition: 'box-shadow 0.15s' },

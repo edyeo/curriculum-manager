@@ -196,7 +196,7 @@ def list_questions(
     question_type: Optional[str] = None,
     difficulty: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_utils.get_current_user),
+    _=Depends(auth_utils.get_user_or_service),
 ):
     q = db.query(QuestionItem)
     if blueprint_id:
@@ -217,7 +217,7 @@ def list_questions(
 def get_question(
     question_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_utils.get_current_user),
+    _=Depends(auth_utils.get_user_or_service),
 ):
     qi = db.query(QuestionItem).filter(QuestionItem.id == question_id).first()
     if not qi:
