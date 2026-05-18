@@ -2,9 +2,9 @@
 
 ## 1. 개요 (Overview)
 
-출제위원이 [EPIC-002](../EPIC-002_blueprint_workspace/PRD-blueprint_workspace.md)에서 정의된 Blueprint를 기반으로, Knowledge Graph 노드를 조합하고 AI 에이전트의 지원을 받아 고품질의 실무 시나리오 문제를 생산하는 독립 워크벤치.
+출제위원이 [EPIC-002](../EPIC-002_blueprint_workspace/PRD-blueprint_workspace.md)에서 정의된 Blueprint를 파라미터로 활용하여, Knowledge Graph 노드를 기반으로 AI 에이전트의 지원을 받아 고품질의 실무 시나리오 문제를 생산하는 독립 워크벤치.
 
-수동 노드 매핑과 에이전트 기반 서브그래프 추천을 병행 지원하며, AI 생성 결과를 인간 전문가가 최종 검수·편집한 후 DB에 등록하는 전 과정을 커버한다.
+특정 entity를 직접 선택하거나, Blueprint 통합항목을 선택하면 에이전트가 entity를 자동 선택하는 두 가지 문제 생성 경로를 지원하며, AI 생성 결과를 인간 전문가가 최종 검수·편집한 후 DB에 등록하는 전 과정을 커버한다.
 
 > **의존:** EPIC-002 Blueprint API가 완성된 이후 진행한다.
 
@@ -20,29 +20,36 @@
 
 ## 3. 핵심 기능 명세 (Feature Specifications)
 
-### Feature 2.1: 매뉴얼 서브그래프 조립 UI (Manual Subgraph Assembly UI)
+### Feature 2.1: 문제 생성 UI (Question Generation UI)
 
-**상세 설명:** 출제위원이 화면에서 직접 Blueprint를 선택한 후, 시스템 내장 지식 그래프 브라우저를 통해 문제에 바인딩할 특정 노드들을 검색하고 직접 수동으로 매핑(Pinning)하는 기능.
+**상세 설명:** 출제위원이 문제 생성을 위한 파라미터를 구성하는 인터페이스. 두 가지 진입 경로를 제공한다.
 
-**비즈니스 가치:** 출제위원의 명확한 의도에 기반한 타깃형 문제를 빠르고 직관적으로 설계할 수 있음.
+- **Path A (직접 선택):** 출제위원이 Knowledge Graph에서 특정 entity(노드)를 직접 선택하고 문제 생성을 요청한다.
+- **Path B (Blueprint 기반):** Blueprint에서 통합항목을 선택하면, 에이전트(Feature 2.2)가 관련 entity를 자동으로 탐색·선택하여 문제 생성 파이프라인에 전달한다.
+
+두 경로 모두 선택된 entity와 Blueprint_ID가 문제 생성 파라미터로 바인딩되어 Feature 2.3으로 전달된다.
+
+**비즈니스 가치:** 출제위원의 의도(직접 지정)와 AI 보조(Blueprint 기반 자동 탐색)를 동일한 UI에서 유연하게 선택할 수 있어 다양한 출제 시나리오를 지원함.
 
 **인수 조건 (Acceptance Criteria):**
 
 - EPIC-002에서 생성된 Blueprint 목록을 동적으로 동기화하여 선택할 수 있어야 한다.
-- 선택된 노드들의 메타데이터(Description, 속성 등)가 화면에 가시화되어 출제위원이 인지할 수 있어야 한다.
+- Path A: 선택된 entity의 메타데이터(Description, 속성 등)가 화면에 가시화되어 출제위원이 인지할 수 있어야 한다.
+- Path B: Blueprint 통합항목 선택 시 Feature 2.2가 자동으로 트리거되며, 추천된 entity 목록이 확인·수정 가능한 형태로 UI에 표시되어야 한다.
+- 문제 생성 시작 전 최종 선택된 entity 목록과 Blueprint_ID가 명확히 확인되어야 한다.
 
 ---
 
 ### Feature 2.2: 에이전트 기반 지능형 서브그래프 검색 엔진 (Agentic Smart-Search Engine)
 
-**상세 설명:** 출제위원이 Blueprint의 '통합 항목'을 선택하고 검색을 요청하면, 에이전트가 Knowledge Graph를 자율적으로 탐색하여 이에 부합하는 연관 노드 클러스터(Seed-Concept-Tech 뭉치)를 찾아내어 UI에 추천하는 기능.
+**상세 설명:** Feature 2.1의 Path B에서 자동 트리거되는 엔진. Blueprint 통합항목의 컨텍스트를 해석하여 Knowledge Graph를 자율적으로 탐색하고, 문제 생성에 적합한 연관 노드 클러스터(Seed-Concept-Tech 뭉치)를 찾아내어 UI에 추천한다.
 
 **비즈니스 가치:** 복잡한 융합 문제를 출제할 때 사람이 일일이 연관 노드를 찾는 리서치 공수를 획기적으로 줄여줌.
 
 **인수 조건 (Acceptance Criteria):**
 
 - 에이전트는 주어진 통합 항목의 컨텍스트를 해석하여 최적의 연결 경로(Path)를 가진 서브그래프 후보군을 최소 3개 이상 추천해야 한다.
-- 추천된 서브그래프는 UI 상에 노드 간의 관계선이 포함된 미니 맵 형태로 시각화되어야 하며, 사용자가 이를 채택할 수 있어야 한다.
+- 추천된 서브그래프는 UI 상에 노드 간의 관계선이 포함된 미니 맵 형태로 시각화되어야 하며, 사용자가 이를 채택·수정할 수 있어야 한다.
 
 ---
 

@@ -10,6 +10,23 @@ from agents.question_generator.src.harness import get_generator
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
 
+# ── EPIC-003 Workbench schemas ─────────────────────────────────────────────────
+
+class WorkbenchGenerateRequest(BaseModel):
+    entity_id: str
+    blueprint_id: Optional[str] = None
+    integration_item_id: Optional[str] = None
+    blueprint_context: Optional[str] = ""
+    question_type: Optional[str] = "MCQ"
+
+
+class SubgraphSearchRequest(BaseModel):
+    integration_item_id: str
+    item_name: str
+    item_description: str
+    required_combinations: Optional[List[dict]] = None
+
+
 # ========== Request/Response Models ==========
 
 class GenerateRequest(BaseModel):
@@ -116,6 +133,61 @@ async def get_overview():
         return {
             "status": "success",
             "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── EPIC-003 Workbench endpoints ───────────────────────────────────────────────
+
+@router.post("/generate-workbench")
+async def generate_workbench(request: WorkbenchGenerateRequest):
+    """Blueprint context + sibling/antipattern 기반 MCQ 생성 (Feature 2.3)"""
+    try:
+        from agents.question_generator.src.graphs.workbench_question_graph import (
+            build_workbench_question_graph
+        )
+        graph = build_workbench_question_graph()
+        result = graph.invoke({
+            "entity_id": request.entity_id,
+            "blueprint_id": request.blueprint_id,
+            "integration_item_id": request.integration_item_id,
+            "blueprint_context": request.blueprint_context or "",
+            "question_type": request.question_type or "MCQ",
+            "entity": None,
+            "siblings": [],
+            "antipatterns": [],
+            "related_context": "",
+            "questions": [],
+            "saved_questions": [],
+        })
+        questions = result.get("questions", [])
+        return {"status": "success", "data": questions}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/subgraph-search")
+async def subgraph_search(request: SubgraphSearchRequest):
+    """통합항목 기반 서브그래프 후보 탐색 (Feature 2.2)"""
+    try:
+        from agents.question_generator.src.graphs.subgraph_search_graph import (
+            build_subgraph_search_graph
+        )
+        graph = build_subgraph_search_graph()
+        result = graph.invoke({
+            "integration_item_id": request.integration_item_id,
+            "item_name": request.item_name,
+            "item_description": request.item_description,
+            "required_combinations": request.required_combinations or [],
+            "all_nodes": [],
+            "all_edges": [],
+            "candidate_roots": [],
+            "candidates": [],
+        })
+        return {
+            "status": "success",
+            "candidates": result.get("candidates", []),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

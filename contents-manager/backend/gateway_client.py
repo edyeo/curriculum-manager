@@ -78,3 +78,57 @@ async def generate_questions(entity_id: str, count: int = 5) -> dict:
         )
         r.raise_for_status()
         return r.json()
+
+
+async def generate_questions_workbench(
+    entity_id: str,
+    blueprint_id: str = None,
+    integration_item_id: str = None,
+    blueprint_context: str = "",
+    question_type: str = "MCQ",
+) -> list:
+    """EPIC-003: blueprint context를 포함한 문항 생성"""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.post(
+            f"{GATEWAY_URL}/proxy/questions/api/questions/generate-workbench",
+            json={
+                "entity_id": entity_id,
+                "blueprint_id": blueprint_id,
+                "integration_item_id": integration_item_id,
+                "blueprint_context": blueprint_context,
+                "question_type": question_type,
+            },
+        )
+        r.raise_for_status()
+        return r.json().get("data", [])
+
+
+async def subgraph_search(
+    integration_item_id: str,
+    item_name: str,
+    item_description: str,
+    required_combinations: list,
+) -> dict:
+    """EPIC-003 Feature 2.2: 통합항목 기반 서브그래프 검색"""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.post(
+            f"{GATEWAY_URL}/proxy/questions/api/questions/subgraph-search",
+            json={
+                "integration_item_id": integration_item_id,
+                "item_name": item_name,
+                "item_description": item_description,
+                "required_combinations": required_combinations,
+            },
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def confirm_ai_link(subject_id: str, edges: list) -> dict:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.post(
+            f"{GATEWAY_URL}/proxy/curriculum/api/curriculum/generate/link-ai/confirm",
+            json={"edges": edges},
+        )
+        r.raise_for_status()
+        return r.json()

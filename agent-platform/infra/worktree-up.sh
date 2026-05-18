@@ -38,6 +38,21 @@ else
   echo "WORKTREE_ROOT=${WORKTREE_ROOT}" >> "$ENV_FILE"
 fi
 
+# OPENAI_API_KEY — main repo .env 에서 동기화 (sk- prefix 누락 방지)
+MAIN_REPO="$(git -C "$WORKTREE_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname 2>/dev/null || echo "")"
+MAIN_ENV="$MAIN_REPO/agent-platform/infra/.env"
+if [ -f "$MAIN_ENV" ]; then
+  MAIN_KEY=$(grep "^OPENAI_API_KEY=" "$MAIN_ENV" | cut -d= -f2-)
+  if [ -n "$MAIN_KEY" ]; then
+    if grep -q "^OPENAI_API_KEY=" "$ENV_FILE"; then
+      sed -i '' "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=${MAIN_KEY}|" "$ENV_FILE"
+    else
+      echo "OPENAI_API_KEY=${MAIN_KEY}" >> "$ENV_FILE"
+    fi
+    echo "🔑 OPENAI_API_KEY ← main repo .env 동기화"
+  fi
+fi
+
 echo "📂 WORKTREE_ROOT: $WORKTREE_ROOT"
 
 # ── down 처리 ─────────────────────────────────────────────────
@@ -79,12 +94,20 @@ init_data_file() {
 init_data_file "$WORKTREE_ROOT/nodes.json"
 init_data_file "$WORKTREE_ROOT/edges.json"
 
-# backend/data/ 안의 빈 디렉토리 정리
+# backend/data/ 동기화 (Mac Docker 중첩 bind mount 우선순위 문제 우회)
+# WORKTREE_ROOT/nodes.json 이 정본(master). backend/data/ 로 복사해 두면
+# contents-manager-backend 볼륨 마운트가 올바른 데이터를 읽는다.
 BACKEND_DATA="$WORKTREE_ROOT/contents-manager/backend/data"
+mkdir -p "$BACKEND_DATA"
 for name in nodes.json edges.json; do
-  if [ -d "$BACKEND_DATA/$name" ]; then
+  target="$BACKEND_DATA/$name"
+  if [ -d "$target" ]; then
     echo "🧹 backend/data/$name 빈 디렉토리 제거"
-    rm -rf "$BACKEND_DATA/$name"
+    rm -rf "$target"
+  fi
+  if [ ! -f "$target" ] || [ ! -s "$target" ]; then
+    echo "📋 backend/data/$name ← WORKTREE_ROOT/$name 복사"
+    cp "$WORKTREE_ROOT/$name" "$target"
   fi
 done
 
