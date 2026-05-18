@@ -22,5 +22,9 @@ def get_db():
 
 
 def init_db():
-    from models import User, Subject, SubjectNode, SubjectEdge  # noqa
+    from models import (  # noqa
+        User, Subject, SubjectNode, SubjectEdge,
+        Blueprint, BlueprintIntegrationItem,
+        QuestionItem, GenerationJob,
+    )
     Base.metadata.create_all(bind=engine)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Column, Text, ForeignKey, TIMESTAMP, func
 from database import Base
 
 
@@ -34,30 +34,56 @@ class SubjectEdge(Base):
     edge_id = Column(Text, primary_key=True)
 
 
+# ── EPIC-002: Blueprint Workspace ──────────────────────────────────────────────
+
 class Blueprint(Base):
     __tablename__ = "blueprints"
-    id          = Column(Text, primary_key=True)
-    name        = Column(Text, nullable=False)
+    id = Column(Text, primary_key=True)
+    name = Column(Text, nullable=False)
     description = Column(Text)
-    owner_id    = Column(Text, ForeignKey("users.id"), nullable=False)
-    deleted_at  = Column(TIMESTAMP, nullable=True)
-    created_at  = Column(TIMESTAMP, server_default=func.now())
-    updated_at  = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    matrix = Column(Text)  # JSON: {layer: [cognitive_stage, ...]}
+    owner_id = Column(Text, ForeignKey("users.id"), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
 
-class MatrixCell(Base):
-    __tablename__ = "matrix_cells"
-    id           = Column(Text, primary_key=True)
-    blueprint_id = Column(Text, ForeignKey("blueprints.id"), nullable=False)
-    layer        = Column(Text, nullable=False)
-    label        = Column(Text, nullable=False)
-    position     = Column(Integer, nullable=False)
+class BlueprintIntegrationItem(Base):
+    __tablename__ = "blueprint_integration_items"
+    id = Column(Text, primary_key=True)
+    blueprint_id = Column(Text, ForeignKey("blueprints.id", ondelete="CASCADE"), nullable=False)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    required_combinations = Column(Text)  # JSON: [{layer, stage}]
+    created_at = Column(TIMESTAMP, server_default=func.now())
 
 
-class IntegrationItem(Base):
-    __tablename__ = "integration_items"
-    id           = Column(Text, primary_key=True)
-    blueprint_id = Column(Text, ForeignKey("blueprints.id"), nullable=False)
-    name         = Column(Text, nullable=False)
-    combinations = Column(Text, nullable=False)  # JSON string
-    created_at   = Column(TIMESTAMP, server_default=func.now())
+# ── EPIC-003: Question Generator Workbench ─────────────────────────────────────
+
+class QuestionItem(Base):
+    __tablename__ = "question_items"
+    id = Column(Text, primary_key=True)
+    entity_id = Column(Text, nullable=False)
+    blueprint_id = Column(Text, ForeignKey("blueprints.id", ondelete="SET NULL"), nullable=True)
+    question_text = Column(Text, nullable=False)
+    # JSON: [{label, text, rationale, is_correct}]
+    options = Column(Text, nullable=False)
+    correct_answer = Column(Text, nullable=False)
+    explanation = Column(Text)
+    # JSON: snapshot of entity + related nodes at generation time (de-normalization)
+    node_snapshot = Column(Text)
+    status = Column(Text, default="draft")  # draft | published
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+
+class GenerationJob(Base):
+    __tablename__ = "generation_jobs"
+    id = Column(Text, primary_key=True)
+    entity_id = Column(Text, nullable=False)
+    blueprint_id = Column(Text, nullable=True)
+    integration_item_id = Column(Text, nullable=True)
+    status = Column(Text, default="pending")  # pending | running | completed | failed
+    result = Column(Text)   # JSON: list of generated question dicts
+    error = Column(Text)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())

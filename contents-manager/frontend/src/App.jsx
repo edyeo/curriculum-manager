@@ -6,6 +6,7 @@ import GraphView from './components/GraphView.jsx'
 import ResearchTab from './components/ResearchTab.jsx'
 import AiLinkModal from './components/AiLinkModal.jsx'
 import BlueprintTab from './components/BlueprintTab.jsx'
+import QuestionWorkbenchTab from './components/QuestionWorkbenchTab.jsx'
 import * as api from './services/contentsApi.js'
 
 export default function App() {
@@ -141,18 +142,22 @@ export default function App() {
 
       {/* Tabs */}
       <nav className="tab-nav">
-        {['editor', 'graph', 'research', 'blueprint'].map(t => (
+        {[
+            ['editor', '편집'],
+            ['graph', '그래프'],
+            ['research', '리서치'],
+            ['blueprint', '출제기준'],
+            ['workbench', '문제출제'],
+          ].map(([t, label]) => (
           <button key={t} className={`tab-btn ${currentTab === t ? 'active' : ''}`} onClick={() => setCurrentTab(t)}>
-            {t === 'editor' ? '편집' : t === 'graph' ? '그래프' : t === 'research' ? '리서치' : 'Blueprint'}
+            {label}
           </button>
         ))}
       </nav>
 
       {/* Main */}
       <main className="app-main">
-        {currentTab === 'blueprint' ? (
-          <BlueprintTab />
-        ) : !selectedSubjectId ? (
+        {!selectedSubjectId ? (
           <div className="no-subject">Subject를 선택하거나 새로 만드세요.</div>
         ) : (
           <>
@@ -189,6 +194,8 @@ export default function App() {
             )}
             {currentTab === 'graph' && <GraphView nodes={nodes} edges={edges} />}
             {currentTab === 'research' && <ResearchTab subjectId={selectedSubjectId} />}
+            {currentTab === 'blueprint' && <BlueprintTab />}
+            {currentTab === 'workbench' && <QuestionWorkbenchTab nodes={nodes} />}
           </>
         )}
       </main>

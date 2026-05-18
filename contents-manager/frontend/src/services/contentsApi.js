@@ -87,12 +87,12 @@ export const getQuestions = (subjectId, nodeId) =>
 export const generateQuestions = (subjectId, nodeId, count = 5) =>
   fetch(`${BASE}/subjects/${subjectId}/nodes/${nodeId}/questions`, { method: 'POST', headers: headers(), body: JSON.stringify({ count }) }).then(handle)
 
-// Blueprints
+// ── EPIC-002: Blueprints ───────────────────────────────────────────────────────
 export const getBlueprints = () =>
   fetch(`${BASE}/blueprints`, { headers: headers() }).then(handle)
 
-export const createBlueprint = (name, description) =>
-  fetch(`${BASE}/blueprints`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, description }) }).then(handle)
+export const createBlueprint = (body) =>
+  fetch(`${BASE}/blueprints`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle)
 
 export const getBlueprint = (id) =>
   fetch(`${BASE}/blueprints/${id}`, { headers: headers() }).then(handle)
@@ -103,19 +103,44 @@ export const updateBlueprint = (id, patch) =>
 export const deleteBlueprint = (id) =>
   fetch(`${BASE}/blueprints/${id}`, { method: 'DELETE', headers: headers() }).then(handle)
 
-// MatrixCell
-export const addMatrixCell = (blueprintId, layer, label) =>
-  fetch(`${BASE}/blueprints/${blueprintId}/cells`, { method: 'POST', headers: headers(), body: JSON.stringify({ layer, label }) }).then(handle)
+export const createIntegrationItem = (blueprintId, body) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/integration-items`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle)
 
-export const updateMatrixCell = (blueprintId, cellId, label) =>
-  fetch(`${BASE}/blueprints/${blueprintId}/cells/${cellId}`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ label }) }).then(handle)
+export const updateIntegrationItem = (blueprintId, itemId, patch) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/integration-items/${itemId}`, { method: 'PATCH', headers: headers(), body: JSON.stringify(patch) }).then(handle)
 
-export const deleteMatrixCell = (blueprintId, cellId) =>
-  fetch(`${BASE}/blueprints/${blueprintId}/cells/${cellId}`, { method: 'DELETE', headers: headers() }).then(handle)
+export const deleteIntegrationItem = (blueprintId, itemId) =>
+  fetch(`${BASE}/blueprints/${blueprintId}/integration-items/${itemId}`, { method: 'DELETE', headers: headers() }).then(handle)
 
-// IntegrationItem
-export const addIntegration = (blueprintId, name, combinations) =>
-  fetch(`${BASE}/blueprints/${blueprintId}/integrations`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, combinations }) }).then(handle)
+// ── EPIC-003: Question Workbench ───────────────────────────────────────────────
+export const startGeneration = (entityId, blueprintId, integrationItemId, questionType = 'MCQ') =>
+  fetch(`${BASE}/question-workbench/generate`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ entity_id: entityId, blueprint_id: blueprintId, integration_item_id: integrationItemId, question_type: questionType }),
+  }).then(handle)
 
-export const deleteIntegration = (blueprintId, itemId) =>
-  fetch(`${BASE}/blueprints/${blueprintId}/integrations/${itemId}`, { method: 'DELETE', headers: headers() }).then(handle)
+export const getGenerationJob = (jobId) =>
+  fetch(`${BASE}/question-workbench/jobs/${jobId}`, { headers: headers() }).then(handle)
+
+export const subgraphSearch = (integrationItemId) =>
+  fetch(`${BASE}/question-workbench/subgraph-search`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ integration_item_id: integrationItemId }),
+  }).then(handle)
+
+export const listWorkbenchQuestions = (filters = {}) => {
+  const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString()
+  return fetch(`${BASE}/question-workbench/questions${params ? '?' + params : ''}`, { headers: headers() }).then(handle)
+}
+
+export const saveWorkbenchQuestion = (body) =>
+  fetch(`${BASE}/question-workbench/questions`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(handle)
+
+export const updateWorkbenchQuestion = (id, patch) =>
+  fetch(`${BASE}/question-workbench/questions/${id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify(patch) }).then(handle)
+
+export const publishWorkbenchQuestion = (id) =>
+  fetch(`${BASE}/question-workbench/questions/${id}/publish`, { method: 'POST', headers: headers() }).then(handle)
+
+export const deleteWorkbenchQuestion = (id) =>
+  fetch(`${BASE}/question-workbench/questions/${id}`, { method: 'DELETE', headers: headers() }).then(handle)
