@@ -191,6 +191,9 @@ tr.selected td { background: #1e2233; }
 .q-hard { background: #450a0a; color: #fca5a5; }
 .empty-msg { color: #4a5568; font-size: 13px; text-align: center; padding: 20px 0; }
 
+/* question-bank table */
+.qb-row:hover td { background: #1a1d2e; }
+
 /* ── Graph tab ── */
 .graph-tab { display: flex; flex-direction: column; height: 100%; background: #080c14; }
 .graph-tab > div:last-child { overflow: auto; flex: 1; }

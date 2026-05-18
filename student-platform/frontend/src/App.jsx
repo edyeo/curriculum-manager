@@ -6,8 +6,10 @@ import ConceptMap from './components/ConceptMap'
 import QuestionSolver from './components/QuestionSolver'
 import ResultView from './components/ResultView'
 import MasteryDashboard from './components/MasteryDashboard'
+import QuestionBrowse from './components/QuestionBrowse'
+import QuestionSolve from './components/QuestionSolve'
 
-const VIEWS = { LOGIN: 'login', REGISTER: 'register', MAP: 'map', SOLVER: 'solver', RESULT: 'result', MASTERY: 'mastery' }
+const VIEWS = { LOGIN: 'login', REGISTER: 'register', MAP: 'map', SOLVER: 'solver', RESULT: 'result', MASTERY: 'mastery', BROWSE: 'browse', QUESTION_SOLVE: 'question_solve' }
 
 export default function App() {
   const [view, setView] = useState(localStorage.getItem('student_token') ? VIEWS.MAP : VIEWS.LOGIN)
@@ -19,6 +21,7 @@ export default function App() {
   const [questions, setQuestions] = useState([])
   const [selectedQuestion, setSelectedQuestion] = useState(null)
   const [submitResult, setSubmitResult] = useState(null)
+  const [browseQuestion, setBrowseQuestion] = useState(null)
 
   // 초기 로드: 학생 정보 + 과목 목록
   useEffect(() => {
@@ -110,6 +113,7 @@ export default function App() {
         <span style={styles.logo}>학생 학습 플랫폼</span>
         <div style={styles.nav}>
           <button onClick={() => setView(VIEWS.MAP)} style={styles.navBtn(view === VIEWS.MAP)}>개념 맵</button>
+          <button onClick={() => setView(VIEWS.BROWSE)} style={styles.navBtn(view === VIEWS.BROWSE || view === VIEWS.QUESTION_SOLVE)}>문제 탐색</button>
           <button onClick={() => setView(VIEWS.MASTERY)} style={styles.navBtn(view === VIEWS.MASTERY)}>이해도 현황</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -160,6 +164,21 @@ export default function App() {
 
         {view === VIEWS.MASTERY && (
           <MasteryDashboard subjectId={selectedSubject?.id} graphData={graphData} />
+        )}
+
+        {view === VIEWS.BROWSE && (
+          <QuestionBrowse
+            onSelectQuestion={(q) => { setBrowseQuestion(q); setView(VIEWS.QUESTION_SOLVE) }}
+            onBack={() => setView(VIEWS.MAP)}
+          />
+        )}
+
+        {view === VIEWS.QUESTION_SOLVE && browseQuestion && (
+          <QuestionSolve
+            question={browseQuestion}
+            onSubmitSuccess={() => {}}
+            onBack={() => setView(VIEWS.BROWSE)}
+          />
         )}
       </main>
     </div>

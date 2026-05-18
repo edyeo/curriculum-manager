@@ -29,6 +29,15 @@ export const api = {
   getGraph: (subjectId) => request('GET', `/curriculum/graph/${subjectId}`),
   getQuestions: (nodeId) => request('GET', `/curriculum/nodes/${nodeId}/questions`),
 
+  // question bank
+  getPublishedQuestions: (filters = {}) => {
+    const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString()
+    return request('GET', `/questions/published${params ? '?' + params : ''}`)
+  },
+  getQuestionDetail: (id) => request('GET', `/questions/${id}`),
+  submitQuestionAnswer: (id, answer, elapsed_ms = 0) =>
+    request('POST', `/questions/${id}/submit`, { answer, elapsed_ms }),
+
   // study
   submit: (payload) => request('POST', '/study/submit', payload),
   getMastery: (subjectId) =>

@@ -21,5 +21,5 @@ def get_db():
 
 
 def init_db():
-    from models import Student, NodeMastery, StudySession  # noqa: F401
+    from models import Student, NodeMastery, StudySession, StudyAttempt  # noqa: F401
     Base.metadata.create_all(bind=engine)

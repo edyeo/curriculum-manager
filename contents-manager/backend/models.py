@@ -71,7 +71,9 @@ class QuestionItem(Base):
     explanation = Column(Text)
     # JSON: snapshot of entity + related nodes at generation time (de-normalization)
     node_snapshot = Column(Text)
-    status = Column(Text, default="draft")  # draft | published
+    question_type = Column(Text, default="MCQ")    # MCQ | OX | short_answer
+    difficulty = Column(Text, default="medium")    # easy | medium | hard
+    status = Column(Text, default="draft")         # draft | published | archived
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
