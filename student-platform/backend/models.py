@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, JSON
 from database import Base
 
 
@@ -80,3 +80,46 @@ class BlueprintItemMastery(Base):
     attempt_count       = Column(Integer, default=0)
     updated_at          = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     __table_args__ = (UniqueConstraint("student_id", "integration_item_id", name="uq_item_mastery"),)
+
+
+# ── EPIC-007: Interview Agent ─────────────────────────────────────────────────
+
+class InterviewSession(Base):
+    """가상 인터뷰 세션. 실행 중 상태는 서버 메모리에서만 관리하며 완료 시 DB에 반영."""
+    __tablename__ = "interview_sessions"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    subject_id = Column(String, nullable=False)
+    status = Column(String, default="active")          # active | completed
+    knowledge_snapshot = Column(JSON)                  # 세션 시작 시점 초기 mastery 기록용
+    started_at = Column(DateTime, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+
+
+class InterviewTurn(Base):
+    """인터뷰 한 턴 = 질문 + 학생 답변 + 평가 결과."""
+    __tablename__ = "interview_turns"
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("interview_sessions.id"), nullable=False)
+    turn_number = Column(Integer, nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    score = Column(Float, nullable=False)
+    feedback = Column(Text)
+    action = Column(String)                            # follow_up | pivot
+    target_nodes = Column(JSON)                        # 대상 노드 ID 목록
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class InterviewDiagnosis(Base):
+    """세션 종료 시 산출되는 최종 진단 리포트."""
+    __tablename__ = "interview_diagnoses"
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("interview_sessions.id"), unique=True, nullable=False)
+    overall_band = Column(String(1))                   # S/A/B/C/D
+    strengths = Column(JSON)
+    weaknesses = Column(JSON)
+    not_covered = Column(JSON)                         # 인터뷰에서 다루지 않은 노드 이름 목록
+    recommendations = Column(JSON)
+    node_final_mastery = Column(JSON)                  # 최종 mastery 상태
+    created_at = Column(DateTime, default=datetime.utcnow)

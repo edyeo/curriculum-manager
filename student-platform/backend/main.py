@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
-from routes import auth, curriculum, study, questions
+from routes import auth, curriculum, study, questions, interview
 
 app = FastAPI(title="Student Platform API", version="0.1.0")
 
@@ -17,6 +17,7 @@ app.include_router(auth.router)
 app.include_router(curriculum.router)
 app.include_router(study.router)
 app.include_router(questions.router)
+app.include_router(interview.router)
 
 
 @app.on_event("startup")

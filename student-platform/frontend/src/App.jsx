@@ -9,9 +9,10 @@ import MasteryDashboard from './components/MasteryDashboard'
 import BlueprintMastery from './components/BlueprintMastery'
 import QuestionBrowse from './components/QuestionBrowse'
 import QuestionSolve from './components/QuestionSolve'
+import InterviewPage from './components/InterviewPage'
 
-const TAB = { MAP: 'map', BROWSE: 'browse', MASTERY: 'mastery', BLUEPRINT: 'blueprint' }
-const VIEWS = { LOGIN: 'login', REGISTER: 'register', MAP: 'map', SOLVER: 'solver', RESULT: 'result', MASTERY: 'mastery', BROWSE: 'browse', QUESTION_SOLVE: 'question_solve', BLUEPRINT: 'blueprint' }
+const TAB = { MAP: 'map', BROWSE: 'browse', MASTERY: 'mastery', BLUEPRINT: 'blueprint', INTERVIEW: 'interview' }
+const VIEWS = { LOGIN: 'login', REGISTER: 'register', MAP: 'map', SOLVER: 'solver', RESULT: 'result', MASTERY: 'mastery', BROWSE: 'browse', QUESTION_SOLVE: 'question_solve', BLUEPRINT: 'blueprint', INTERVIEW: 'interview' }
 
 const tabOf = (view) => {
   if (view === VIEWS.SOLVER || view === VIEWS.RESULT) return TAB.MAP
@@ -144,6 +145,7 @@ export default function App() {
           [TAB.BROWSE,    '문제 탐색'],
           [TAB.MASTERY,   '이해도 현황'],
           [TAB.BLUEPRINT, 'Blueprint'],
+          [TAB.INTERVIEW, '인터뷰'],
         ].map(([tab, label]) => (
           <button
             key={tab}
@@ -192,6 +194,10 @@ export default function App() {
 
         {view === VIEWS.BLUEPRINT && (
           <BlueprintMastery />
+        )}
+
+        {view === VIEWS.INTERVIEW && (
+          <InterviewPage subject={selectedSubject} />
         )}
 
         {view === VIEWS.BROWSE && (

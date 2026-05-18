@@ -283,6 +283,7 @@ services:
       GATEWAY_URL: http://api-gateway:9000
       STUDENT_JWT_SECRET: ${STUDENT_JWT_SECRET:-student-secret-change-in-prod}
       DATABASE_URL: sqlite:////app/db/student_platform.db
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "8020:8020"
     depends_on:

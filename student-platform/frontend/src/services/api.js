@@ -48,4 +48,18 @@ export const api = {
     request('GET', `/study/competency?subject_id=${subjectId}`),
   getBlueprintMatrix: () =>
     request('GET', '/study/blueprint-matrix'),
+
+  // interview
+  startInterview: (subjectId) =>
+    request('POST', '/interview/sessions', { subject_id: subjectId }),
+  submitInterviewAnswer: (sessionId, answer) =>
+    request('POST', `/interview/sessions/${sessionId}/answer`, { answer }),
+  endInterview: (sessionId) =>
+    request('POST', `/interview/sessions/${sessionId}/end`),
+  getInterviewSession: (sessionId) =>
+    request('GET', `/interview/sessions/${sessionId}`),
+  listInterviewSessions: () =>
+    request('GET', '/interview/sessions'),
+  getInterviewDiagnosis: (sessionId) =>
+    request('GET', `/interview/sessions/${sessionId}/diagnosis`),
 }
