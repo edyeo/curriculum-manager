@@ -1,79 +1,149 @@
 import { useEffect, useState } from 'react'
 import { api } from '../services/api'
 
-function MasteryBar({ score }) {
-  const pct = score !== null && score !== undefined ? score * 100 : null
-  const color = pct === null ? '#b0b0b0' : pct < 40 ? '#fc8181' : pct < 70 ? '#f6ad55' : '#68d391'
+function CompetencyGauge({ score }) {
+  const pct = score * 100
+  const color = pct < 40 ? '#fc8181' : pct < 70 ? '#f6ad55' : '#68d391'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{ flex: 1, height: 8, background: '#e2e8f0', borderRadius: 4 }}>
-        {pct !== null && <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4 }} />}
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4 }} />
       </div>
       <span style={{ fontSize: 12, color: '#555', width: 40, textAlign: 'right' }}>
-        {pct !== null ? `${pct.toFixed(0)}%` : '미학습'}
+        {pct.toFixed(0)}%
       </span>
     </div>
   )
 }
 
-export default function MasteryDashboard({ subjectId, graphData }) {
-  const [masteryMap, setMasteryMap] = useState({})
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!subjectId) return
-    setLoading(true)
-    api.getMastery(subjectId)
-      .then(res => {
-        const map = {}
-        for (const r of res.mastery) map[r.node_id] = r.mastery_score
-        setMasteryMap(map)
-      })
-      .finally(() => setLoading(false))
-  }, [subjectId])
-
-  if (!graphData?.nodes?.length) return <p style={{ color: '#888', textAlign: 'center' }}>그래프 데이터를 불러오는 중...</p>
-  if (loading) return <p style={{ color: '#888', textAlign: 'center' }}>이해도 로딩 중...</p>
-
-  const nodes = graphData.nodes.map(n => ({ ...n, mastery_score: masteryMap[n.id] ?? null }))
-  const byType = {}
-  for (const n of nodes) {
-    if (!byType[n.type]) byType[n.type] = []
-    byType[n.type].push(n)
-  }
-
-  const learned = nodes.filter(n => n.mastery_score !== null)
-  const avgMastery = learned.length ? learned.reduce((s, n) => s + n.mastery_score, 0) / learned.length : 0
-  const weak = learned.filter(n => n.mastery_score < 0.4)
-
+function BlueprintBadge({ bp }) {
+  const color = bp.cleared ? '#68d391' : bp.required ? '#fc8181' : '#cbd5e0'
+  const bg = bp.cleared ? '#f0fff4' : bp.required ? '#fff5f5' : '#f7fafc'
   return (
-    <div style={{ padding: '1rem' }}>
-      <div style={styles.summary}>
-        <div style={styles.stat}><span style={styles.statNum}>{(avgMastery * 100).toFixed(0)}%</span><span>전체 평균</span></div>
-        <div style={styles.stat}><span style={styles.statNum}>{learned.length}/{nodes.length}</span><span>학습 완료</span></div>
-        <div style={styles.stat}><span style={{ ...styles.statNum, color: '#fc8181' }}>{weak.length}</span><span>취약 노드</span></div>
-      </div>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      border: `1px solid ${color}`, background: bg,
+      borderRadius: 12, padding: '2px 8px', fontSize: 11, color: '#4a5568',
+    }}>
+      <span style={{ color, fontWeight: 700 }}>{bp.cleared ? '✓' : bp.required ? '!' : '○'}</span>
+      {bp.blueprint_name}
+      <span style={{ color: '#a0aec0' }}>{(bp.clearance * 100).toFixed(0)}%</span>
+    </span>
+  )
+}
 
-      {['Seed', 'Concept', 'TechStack'].map(type => byType[type] && (
-        <div key={type} style={styles.group}>
-          <h4 style={styles.groupTitle}>{type} ({byType[type].length}개)</h4>
-          {byType[type].map(n => (
-            <div key={n.id} style={styles.nodeRow}>
-              <span style={{ fontSize: 13, flex: 1, color: '#333' }}>{n.name}</span>
-              <div style={{ width: 200 }}><MasteryBar score={n.mastery_score} /></div>
+function NodeCard({ node }) {
+  const [open, setOpen] = useState(false)
+  const hasRequired = node.blueprints.some(b => b.required)
+  return (
+    <div style={S.card}>
+      <div style={S.cardHeader} onClick={() => setOpen(o => !o)}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: '#2d3748' }}>{node.node_name}</span>
+            {hasRequired && !node.required_blueprint_cleared && (
+              <span style={{ fontSize: 10, background: '#fff5f5', border: '1px solid #fc8181', color: '#e53e3e', borderRadius: 4, padding: '1px 5px' }}>필수 미달</span>
+            )}
+          </div>
+          <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {node.blueprints.map(bp => <BlueprintBadge key={bp.blueprint_id} bp={bp} />)}
+          </div>
+        </div>
+        <div style={{ width: 180, marginLeft: 16 }}>
+          <CompetencyGauge score={node.competency_score} />
+        </div>
+        <span style={{ marginLeft: 8, color: '#a0aec0', fontSize: 14 }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={S.cardBody}>
+          {node.blueprints.map(bp => (
+            <div key={bp.blueprint_id} style={S.bpRow}>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 12, color: '#4a5568' }}>{bp.blueprint_name}</span>
+                {bp.required && <span style={{ marginLeft: 6, fontSize: 10, color: '#e53e3e' }}>필수</span>}
+              </div>
+              <span style={{ fontSize: 11, color: '#718096' }}>
+                정답 {bp.correct_count}/{bp.attempt_count}회 시도 · {(bp.clearance * 100).toFixed(0)}% 달성
+              </span>
+              <span style={{ marginLeft: 8, fontWeight: 600, fontSize: 12, color: bp.cleared ? '#38a169' : '#a0aec0' }}>
+                {bp.cleared ? '달성' : '미달'}
+              </span>
             </div>
           ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
 
-const styles = {
+export default function MasteryDashboard({ subjectId }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!subjectId) return
+    setLoading(true)
+    setError(null)
+    api.getCompetency(subjectId)
+      .then(setData)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [subjectId])
+
+  if (!subjectId) return <p style={S.hint}>과목을 선택하세요.</p>
+  if (loading) return <p style={S.hint}>이해도 로딩 중...</p>
+  if (error) return <p style={{ ...S.hint, color: '#e53e3e' }}>{error}</p>
+  if (!data) return null
+
+  const nodes = data.nodes || []
+  const withBp = nodes.filter(n => n.blueprints.length > 0)
+  const noBp = nodes.filter(n => n.blueprints.length === 0)
+  const avgComp = withBp.length
+    ? withBp.reduce((s, n) => s + n.competency_score, 0) / withBp.length
+    : 0
+  const clearedCount = withBp.filter(n => n.competency_score >= 0.7).length
+  const requiredFail = withBp.filter(n => !n.required_blueprint_cleared).length
+
+  return (
+    <div style={{ padding: '1rem' }}>
+      <div style={S.summary}>
+        <div style={S.stat}>
+          <span style={S.statNum}>{(avgComp * 100).toFixed(0)}%</span>
+          <span>전체 평균</span>
+        </div>
+        <div style={S.stat}>
+          <span style={S.statNum}>{clearedCount}/{withBp.length}</span>
+          <span>달성 노드</span>
+        </div>
+        <div style={S.stat}>
+          <span style={{ ...S.statNum, color: requiredFail ? '#fc8181' : '#68d391' }}>{requiredFail}</span>
+          <span>필수 미달</span>
+        </div>
+      </div>
+
+      {withBp.map(node => <NodeCard key={node.node_id} node={node} />)}
+
+      {noBp.length > 0 && (
+        <div style={S.noBpGroup}>
+          <span style={{ fontSize: 12, color: '#a0aec0' }}>Blueprint 미연결 노드: </span>
+          {noBp.map(n => (
+            <span key={n.node_id} style={{ fontSize: 12, color: '#cbd5e0', marginLeft: 8 }}>{n.node_name}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const S = {
   summary: { display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center' },
   stat: { textAlign: 'center', background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#666' },
   statNum: { fontSize: 22, fontWeight: 'bold', color: '#2d3748' },
-  group: { marginBottom: '1.5rem' },
-  groupTitle: { fontSize: 14, color: '#555', borderBottom: '1px solid #e2e8f0', paddingBottom: 6, marginBottom: 10 },
-  nodeRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0' },
+  hint: { color: '#888', textAlign: 'center' },
+  card: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 8, overflow: 'hidden' },
+  cardHeader: { display: 'flex', alignItems: 'center', padding: '12px 16px', cursor: 'pointer' },
+  cardBody: { borderTop: '1px solid #e2e8f0', padding: '8px 16px' },
+  bpRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 },
+  noBpGroup: { marginTop: 12, padding: '8px 12px', background: '#f7fafc', borderRadius: 6 },
 }

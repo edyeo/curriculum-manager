@@ -26,6 +26,8 @@ class BlueprintUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     matrix: Optional[List[MatrixLayer]] = None
+    weight: Optional[float] = None
+    required: Optional[bool] = None
 
 class IntegrationItemCreate(BaseModel):
     name: str
@@ -44,6 +46,8 @@ def _bp_to_dict(bp: Blueprint) -> dict:
         "name": bp.name,
         "description": bp.description,
         "matrix": json.loads(bp.matrix) if bp.matrix else [],
+        "weight": bp.weight if bp.weight is not None else 1.0,
+        "required": bp.required if bp.required is not None else False,
         "owner_id": bp.owner_id,
         "created_at": bp.created_at.isoformat() if bp.created_at else None,
         "updated_at": bp.updated_at.isoformat() if bp.updated_at else None,
@@ -124,6 +128,10 @@ def update_blueprint(
         bp.description = body.description
     if body.matrix is not None:
         bp.matrix = json.dumps([m.dict() for m in body.matrix])
+    if body.weight is not None:
+        bp.weight = body.weight
+    if body.required is not None:
+        bp.required = body.required
     db.commit()
     db.refresh(bp)
     return _bp_to_dict(bp)

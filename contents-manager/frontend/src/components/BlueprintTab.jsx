@@ -23,6 +23,11 @@ export default function BlueprintTab() {
   const [matrixDirty, setMatrixDirty] = useState(false)
   const [matrixSaving, setMatrixSaving] = useState(false)
   const [addingStage, setAddingStage] = useState({}) // {layerName: inputValue}
+  // Rubric 속성 편집 상태
+  const [rubricWeight, setRubricWeight] = useState(1.0)
+  const [rubricRequired, setRubricRequired] = useState(false)
+  const [rubricDirty, setRubricDirty] = useState(false)
+  const [rubricSaving, setRubricSaving] = useState(false)
 
   useEffect(() => {
     api.getBlueprints().then(d => setBlueprints(d.blueprints || []))
@@ -34,6 +39,9 @@ export default function BlueprintTab() {
     setMatrix(detail.matrix?.length ? detail.matrix : DEFAULT_MATRIX)
     setMatrixDirty(false)
     setAddingStage({})
+    setRubricWeight(detail.weight ?? 1.0)
+    setRubricRequired(detail.required ?? false)
+    setRubricDirty(false)
   }
 
   // 인지 단계 추가
@@ -63,6 +71,17 @@ export default function BlueprintTab() {
       setSelected(prev => ({ ...prev, matrix: updated.matrix }))
       setMatrixDirty(false)
     } finally { setMatrixSaving(false) }
+  }
+
+  // Rubric 속성 저장
+  const handleSaveRubric = async () => {
+    setRubricSaving(true)
+    try {
+      const updated = await api.updateBlueprint(selected.id, { weight: rubricWeight, required: rubricRequired })
+      setSelected(prev => ({ ...prev, weight: updated.weight, required: updated.required }))
+      setBlueprints(prev => prev.map(b => b.id === selected.id ? { ...b, weight: updated.weight, required: updated.required } : b))
+      setRubricDirty(false)
+    } finally { setRubricSaving(false) }
   }
 
   const handleCreate = async () => {
@@ -156,6 +175,37 @@ export default function BlueprintTab() {
           <>
             <h2 style={{ color: '#e2e8f0', marginBottom: 4 }}>{selected.name}</h2>
             {selected.description && <p style={{ color: '#a0aec0', marginBottom: 20 }}>{selected.description}</p>}
+
+            {/* Rubric 속성 */}
+            <section style={{ marginBottom: 24, background: '#1a202c', borderRadius: 8, padding: '14px 18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ color: '#90cdf4', fontSize: 14, margin: 0 }}>Rubric 속성</h3>
+                {rubricDirty && (
+                  <button className="btn-primary" onClick={handleSaveRubric} disabled={rubricSaving} style={{ padding: '4px 12px', fontSize: 12 }}>
+                    {rubricSaving ? '저장 중...' : '저장'}
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                <label style={{ color: '#a0aec0', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  가중치 (weight)
+                  <input
+                    type="number" min="0" max="10" step="0.1"
+                    value={rubricWeight}
+                    onChange={e => { setRubricWeight(parseFloat(e.target.value) || 1.0); setRubricDirty(true) }}
+                    style={{ width: 64, background: '#2d3748', border: '1px solid #4a5568', borderRadius: 4, color: '#e2e8f0', padding: '3px 8px', fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ color: '#a0aec0', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={rubricRequired}
+                    onChange={e => { setRubricRequired(e.target.checked); setRubricDirty(true) }}
+                  />
+                  필수 Blueprint (required)
+                </label>
+              </div>
+            </section>
 
             {/* Matrix */}
             <section style={{ marginBottom: 28 }}>
