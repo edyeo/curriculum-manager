@@ -32,6 +32,78 @@ function BlueprintBadge({ bp }) {
   )
 }
 
+function CellMasteryBadge({ layer, stage, mastery }) {
+  const pct = mastery * 100
+  const bg = pct < 40 ? '#fff5f5' : pct < 70 ? '#fffaf0' : '#f0fff4'
+  const color = pct < 40 ? '#e53e3e' : pct < 70 ? '#c05621' : '#276749'
+  return (
+    <div style={{
+      display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+      background: bg, border: `1px solid ${color}33`, borderRadius: 6,
+      padding: '4px 8px', fontSize: 10, minWidth: 64,
+    }}>
+      <span style={{ color: '#718096', marginBottom: 2 }}>{layer}/{stage}</span>
+      <span style={{ fontWeight: 700, color }}>{pct.toFixed(0)}%</span>
+    </div>
+  )
+}
+
+function IntegrationItemRow({ item }) {
+  const [open, setOpen] = useState(false)
+  const pct = item.mastery_score * 100
+  const color = pct < 40 ? '#e53e3e' : pct < 70 ? '#c05621' : '#276749'
+  const hasCells = item.required_combinations && item.required_combinations.length > 0
+  return (
+    <div style={S.itemRow}>
+      <div style={S.itemHeader} onClick={() => hasCells && setOpen(o => !o)}>
+        <span style={{ fontSize: 12, color: '#4a5568', flex: 1 }}>{item.item_name}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color }}>{pct.toFixed(0)}%</span>
+        {hasCells && (
+          <span style={{ marginLeft: 6, color: '#a0aec0', fontSize: 11 }}>{open ? '▲' : '▼'}</span>
+        )}
+      </div>
+      {open && hasCells && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 0 2px 0' }}>
+          {item.required_combinations.map((c, i) => (
+            <CellMasteryBadge key={i} layer={c.layer} stage={c.stage} mastery={c.cell_mastery} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BlueprintDetail({ bp }) {
+  const [open, setOpen] = useState(false)
+  const hasItems = bp.integration_items && bp.integration_items.length > 0
+  return (
+    <div style={S.bpDetail}>
+      <div style={S.bpDetailHeader} onClick={() => setOpen(o => !o)}>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontSize: 12, color: '#4a5568' }}>{bp.blueprint_name}</span>
+          {bp.required && <span style={{ marginLeft: 6, fontSize: 10, color: '#e53e3e' }}>필수</span>}
+        </div>
+        <span style={{ fontSize: 11, color: '#718096' }}>
+          {bp.correct_count}/{bp.attempt_count}회 · {(bp.clearance * 100).toFixed(0)}%
+        </span>
+        <span style={{ marginLeft: 8, fontWeight: 600, fontSize: 12, color: bp.cleared ? '#38a169' : '#a0aec0' }}>
+          {bp.cleared ? '달성' : '미달'}
+        </span>
+        {hasItems && (
+          <span style={{ marginLeft: 6, color: '#a0aec0', fontSize: 11 }}>{open ? '▲' : '▼'}</span>
+        )}
+      </div>
+      {open && hasItems && (
+        <div style={{ paddingLeft: 12, paddingBottom: 4 }}>
+          {bp.integration_items.map(item => (
+            <IntegrationItemRow key={item.item_id} item={item} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NodeCard({ node }) {
   const [open, setOpen] = useState(false)
   const hasRequired = node.blueprints.some(b => b.required)
@@ -42,7 +114,7 @@ function NodeCard({ node }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: '#2d3748' }}>{node.node_name}</span>
             {hasRequired && !node.required_blueprint_cleared && (
-              <span style={{ fontSize: 10, background: '#fff5f5', border: '1px solid #fc8181', color: '#e53e3e', borderRadius: 4, padding: '1px 5px' }}>필수 미달</span>
+              <span style={S.failBadge}>필수 미달</span>
             )}
           </div>
           <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -57,18 +129,7 @@ function NodeCard({ node }) {
       {open && (
         <div style={S.cardBody}>
           {node.blueprints.map(bp => (
-            <div key={bp.blueprint_id} style={S.bpRow}>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 12, color: '#4a5568' }}>{bp.blueprint_name}</span>
-                {bp.required && <span style={{ marginLeft: 6, fontSize: 10, color: '#e53e3e' }}>필수</span>}
-              </div>
-              <span style={{ fontSize: 11, color: '#718096' }}>
-                정답 {bp.correct_count}/{bp.attempt_count}회 시도 · {(bp.clearance * 100).toFixed(0)}% 달성
-              </span>
-              <span style={{ marginLeft: 8, fontWeight: 600, fontSize: 12, color: bp.cleared ? '#38a169' : '#a0aec0' }}>
-                {bp.cleared ? '달성' : '미달'}
-              </span>
-            </div>
+            <BlueprintDetail key={bp.blueprint_id} bp={bp} />
           ))}
         </div>
       )}
@@ -141,9 +202,13 @@ const S = {
   stat: { textAlign: 'center', background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#666' },
   statNum: { fontSize: 22, fontWeight: 'bold', color: '#2d3748' },
   hint: { color: '#888', textAlign: 'center' },
+  failBadge: { fontSize: 10, background: '#fff5f5', border: '1px solid #fc8181', color: '#e53e3e', borderRadius: 4, padding: '1px 5px' },
   card: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 8, overflow: 'hidden' },
   cardHeader: { display: 'flex', alignItems: 'center', padding: '12px 16px', cursor: 'pointer' },
   cardBody: { borderTop: '1px solid #e2e8f0', padding: '8px 16px' },
-  bpRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 },
+  bpDetail: { borderBottom: '1px solid #f0f4f8' },
+  bpDetailHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer', fontSize: 12 },
+  itemRow: { padding: '4px 0' },
+  itemHeader: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '2px 0' },
   noBpGroup: { marginTop: 12, padding: '8px 12px', background: '#f7fafc', borderRadius: 6 },
 }

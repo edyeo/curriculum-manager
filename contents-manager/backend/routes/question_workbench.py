@@ -5,7 +5,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User, Blueprint, BlueprintIntegrationItem, QuestionItem, GenerationJob
+from models import User, Blueprint, BlueprintIntegrationItem, QuestionItem, GenerationJob, QuestionEntityLink, QuestionMatrixLink
 import auth as auth_utils
 import gateway_client
 
@@ -44,8 +44,8 @@ def _job_to_dict(job: GenerationJob) -> dict:
     }
 
 
-def _question_to_dict(q: QuestionItem) -> dict:
-    return {
+def _question_to_dict(q: QuestionItem, db=None) -> dict:
+    base = {
         "id": q.id,
         "entity_id": q.entity_id,
         "blueprint_id": q.blueprint_id,
@@ -60,6 +60,15 @@ def _question_to_dict(q: QuestionItem) -> dict:
         "created_at": q.created_at.isoformat() if q.created_at else None,
         "updated_at": q.updated_at.isoformat() if q.updated_at else None,
     }
+    if db is not None:
+        entity_links = [r.entity_id for r in db.query(QuestionEntityLink).filter(QuestionEntityLink.question_id == q.id).all()]
+        matrix_links = [
+            {"blueprint_id": r.blueprint_id, "layer": r.layer, "stage": r.stage, "integration_item_id": r.integration_item_id}
+            for r in db.query(QuestionMatrixLink).filter(QuestionMatrixLink.question_id == q.id).all()
+        ]
+        base["entity_links"] = entity_links
+        base["matrix_links"] = matrix_links
+    return base
 
 
 # ── Background worker ──────────────────────────────────────────────────────────
@@ -222,7 +231,7 @@ def get_question(
     qi = db.query(QuestionItem).filter(QuestionItem.id == question_id).first()
     if not qi:
         raise HTTPException(404, "Question not found")
-    return _question_to_dict(qi)
+    return _question_to_dict(qi, db)
 
 
 @router.post("/questions", status_code=201)
@@ -244,9 +253,28 @@ def save_question(
         status="draft",
     )
     db.add(qi)
+    db.flush()
+
+    # Entity link
+    db.add(QuestionEntityLink(question_id=qi.id, entity_id=qi.entity_id))
+
+    # Matrix links — integration_item의 required_combinations에서 자동 추출
+    iid = body.get("integration_item_id")
+    if iid and qi.blueprint_id:
+        item = db.query(BlueprintIntegrationItem).filter(BlueprintIntegrationItem.id == iid).first()
+        if item and item.required_combinations:
+            for combo in json.loads(item.required_combinations):
+                db.add(QuestionMatrixLink(
+                    question_id=qi.id,
+                    blueprint_id=qi.blueprint_id,
+                    layer=combo["layer"],
+                    stage=combo["stage"],
+                    integration_item_id=iid,
+                ))
+
     db.commit()
     db.refresh(qi)
-    return _question_to_dict(qi)
+    return _question_to_dict(qi, db)
 
 
 @router.patch("/questions/{question_id}")
