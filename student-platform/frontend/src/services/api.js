@@ -35,8 +35,8 @@ export const api = {
     return request('GET', `/questions/published${params ? '?' + params : ''}`)
   },
   getQuestionDetail: (id) => request('GET', `/questions/${id}`),
-  submitQuestionAnswer: (id, answer, elapsed_ms = 0) =>
-    request('POST', `/questions/${id}/submit`, { answer, elapsed_ms }),
+  submitQuestionAnswer: (id, answer, elapsed_ms = 0, subject_id = null) =>
+    request('POST', `/questions/${id}/submit`, { answer, elapsed_ms, subject_id }),
 
   // study
   submit: (payload) => request('POST', '/study/submit', payload),

@@ -5,7 +5,7 @@ const DIFF_LABEL = { easy: '쉬움', medium: '보통', hard: '어려움' }
 const DIFF_COLOR = { easy: '#10b981', medium: '#f59e0b', hard: '#ef4444' }
 const TYPE_LABEL = { MCQ: '객관식', OX: 'O/X', short_answer: '단답형' }
 
-export default function QuestionBrowse({ onSelectQuestion, onBack }) {
+export default function QuestionBrowse({ subject, onSelectQuestion }) {
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -25,11 +25,22 @@ export default function QuestionBrowse({ onSelectQuestion, onBack }) {
     }
   }, [filters])
 
+  if (!subject) {
+    return (
+      <div style={S.root}>
+        <div style={S.noSubject}>
+          <p>문제를 탐색하려면 먼저 <strong>과목을 선택</strong>해주세요.</p>
+          <p style={{ fontSize: 13, color: '#aaa', marginTop: 6 }}>상단 헤더의 과목 선택 메뉴를 이용하세요.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={S.root}>
       <div style={S.header}>
-        <button onClick={onBack} style={S.backBtn}>← 개념 맵으로</button>
         <h2 style={S.title}>문제 탐색</h2>
+        <span style={S.subjectBadge}>{subject.name}</span>
       </div>
 
       {/* 필터 + 조회 버튼 */}
@@ -87,6 +98,8 @@ const S = {
   header: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 },
   backBtn: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13 },
   title: { margin: 0, fontSize: 20, color: '#2d3748' },
+  subjectBadge: { padding: '3px 10px', background: '#eff6ff', color: '#3b82f6', borderRadius: 12, fontSize: 13, fontWeight: 600 },
+  noSubject: { padding: '60px 0', textAlign: 'center', color: '#555', fontSize: 15, lineHeight: 2 },
   filters: { display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' },
   select: { padding: '6px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 },
   searchBtn: { padding: '6px 18px', background: '#4a90e2', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
