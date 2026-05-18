@@ -148,3 +148,36 @@ def kg_node_blueprints(
             ],
         })
     return {"blueprints": result}
+
+
+# ── All Blueprints (matrix template) ─────────────────────────────────────────
+
+@router.get("/blueprints")
+def kg_all_blueprints(
+    db: Session = Depends(get_db),
+    _=Depends(auth_utils.verify_service_token),
+):
+    blueprints = db.query(Blueprint).order_by(Blueprint.created_at.desc()).all()
+    result = []
+    for bp in blueprints:
+        matrix = json.loads(bp.matrix) if bp.matrix else []
+        if not matrix:
+            continue
+        items = db.query(BlueprintIntegrationItem).filter(
+            BlueprintIntegrationItem.blueprint_id == bp.id
+        ).all()
+        result.append({
+            "blueprint_id": bp.id,
+            "blueprint_name": bp.name,
+            "description": bp.description or "",
+            "matrix": matrix,
+            "integration_items": [
+                {
+                    "item_id": item.id,
+                    "item_name": item.name,
+                    "required_combinations": json.loads(item.required_combinations) if item.required_combinations else [],
+                }
+                for item in items
+            ],
+        })
+    return {"blueprints": result}
