@@ -346,12 +346,19 @@ async def end_session(
 
     final_mastery = dict(s.working_mastery or s.knowledge_snapshot or {})
 
+    # 실제 질문이 나간 노드 ID 집합
+    assessed_node_ids: set[str] = set()
+    for t in turns:
+        for nid in (t.target_nodes or []):
+            assessed_node_ids.add(nid)
+
     # 진단 생성
     diagnosis_data = agent.generate_diagnosis(
         subject_name=subject_name,
         nodes=nodes,
         turns=_turns_as_history(turns),
         final_mastery=final_mastery,
+        assessed_node_ids=assessed_node_ids,
     )
 
     # DB에 진단 저장
@@ -360,6 +367,7 @@ async def end_session(
         overall_band=diagnosis_data.get("overall_band", "C"),
         strengths=diagnosis_data.get("strengths", []),
         weaknesses=diagnosis_data.get("weaknesses", []),
+        not_covered=diagnosis_data.get("not_covered", []),
         recommendations=diagnosis_data.get("recommendations", []),
         node_final_mastery=final_mastery,
     )
@@ -381,6 +389,7 @@ async def end_session(
         "overall_band": diagnosis.overall_band,
         "strengths": diagnosis.strengths,
         "weaknesses": diagnosis.weaknesses,
+        "not_covered": diagnosis.not_covered,
         "recommendations": diagnosis.recommendations,
         "node_final_mastery": final_mastery,
     }
@@ -413,6 +422,7 @@ def get_diagnosis(
         "overall_band": diagnosis.overall_band,
         "strengths": diagnosis.strengths,
         "weaknesses": diagnosis.weaknesses,
+        "not_covered": diagnosis.not_covered,
         "recommendations": diagnosis.recommendations,
         "node_final_mastery": diagnosis.node_final_mastery,
         "turn_count": s.turn_count,

@@ -96,6 +96,7 @@ class InterviewDiagnosis(Base):
     overall_band = Column(String(1))                   # S/A/B/C/D
     strengths = Column(JSON)
     weaknesses = Column(JSON)
+    not_covered = Column(JSON)                         # 인터뷰에서 다루지 않은 노드 이름 목록
     recommendations = Column(JSON)
     node_final_mastery = Column(JSON)                  # 최종 mastery 상태
     created_at = Column(DateTime, default=datetime.utcnow)

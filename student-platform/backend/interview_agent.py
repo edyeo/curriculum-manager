@@ -162,12 +162,21 @@ def generate_diagnosis(
     nodes: list[dict],
     turns: list[dict],
     final_mastery: dict[str, float],
+    assessed_node_ids: set[str],
 ) -> dict:
-    """세션 전체를 분석하여 최종 진단 리포트를 생성한다."""
+    """세션 전체를 분석하여 최종 진단 리포트를 생성한다.
 
-    node_mastery_summary = "\n".join(
+    assessed_node_ids: 실제 인터뷰에서 질문이 나간 노드 ID 집합.
+    미방문 노드는 strengths/weaknesses 대신 not_covered로 분리한다.
+    """
+    node_map = {n["id"]: n.get("name", n["id"]) for n in nodes}
+
+    assessed_nodes = [n for n in nodes if n["id"] in assessed_node_ids]
+    not_covered_nodes = [n for n in nodes if n["id"] not in assessed_node_ids]
+
+    assessed_summary = "\n".join(
         f"- {n.get('name', n['id'])}: {final_mastery.get(n['id'], 0.5):.2f}"
-        for n in nodes
+        for n in assessed_nodes
     )
     turns_summary = "\n".join(
         f"Turn {t['turn_number']}: score={t['score']:.2f} | Q={t['question'][:80]}..."
@@ -182,31 +191,37 @@ def generate_diagnosis(
 
     user = f"""Subject: {subject_name}
 
-Final node mastery levels:
-{node_mastery_summary}
+Assessed nodes (actually questioned during interview) with final mastery:
+{assessed_summary or "(none)"}
 
 Interview turns:
-{turns_summary}
+{turns_summary or "(none)"}
 
-Return JSON:
+Return JSON evaluating ONLY the assessed nodes above:
 {{
-  "overall_band": "<S|A|B|C|D: S>=0.9, A>=0.75, B>=0.6, C>=0.45, D<0.45>",
-  "strengths": ["<node or concept name>", ...],
-  "weaknesses": ["<node or concept name>", ...],
-  "recommendations": ["<next learning action in Korean>", ...]
+  "overall_band": "<S|A|B|C|D based on assessed nodes: S>=0.9, A>=0.75, B>=0.6, C>=0.45, D<0.45>",
+  "strengths": ["<assessed node name where mastery >= 0.7>", ...],
+  "weaknesses": ["<assessed node name where mastery < 0.6>", ...],
+  "recommendations": ["<specific next learning action in Korean>", ...]
 }}"""
 
     raw = _chat(system, user, max_tokens=800)
     try:
-        return json.loads(raw)
+        result = json.loads(raw)
     except json.JSONDecodeError:
-        avg = sum(final_mastery.values()) / len(final_mastery) if final_mastery else 0.5
-        return {
+        avg = (
+            sum(final_mastery.get(nid, 0.5) for nid in assessed_node_ids) / len(assessed_node_ids)
+            if assessed_node_ids else 0.5
+        )
+        result = {
             "overall_band": _band(avg),
             "strengths": [],
             "weaknesses": [],
             "recommendations": ["학습을 계속하세요."],
         }
+
+    result["not_covered"] = [node_map[n["id"]] for n in not_covered_nodes]
+    return result
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
