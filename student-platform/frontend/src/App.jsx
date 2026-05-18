@@ -191,7 +191,7 @@ export default function App() {
         )}
 
         {view === VIEWS.BLUEPRINT && (
-          <BlueprintMastery subjectId={selectedSubject?.id} />
+          <BlueprintMastery />
         )}
 
         {view === VIEWS.BROWSE && (

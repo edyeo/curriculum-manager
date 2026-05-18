@@ -299,3 +299,43 @@ async def get_competency(
         })
 
     return {"nodes": result_nodes}
+
+
+# ── Blueprint Matrix ───────────────────────────────────────────────────────────
+
+@router.get("/blueprint-matrix")
+async def get_blueprint_matrix(
+    db: Session = Depends(get_db),
+    current_student: Student = Depends(auth_utils.get_current_student),
+):
+    blueprints = await kg_client.get_all_blueprints()
+
+    cell_records = db.query(BlueprintCellMastery).filter(
+        BlueprintCellMastery.student_id == current_student.id
+    ).all()
+    cell_map = {(r.blueprint_id, r.layer, r.stage): round(r.mastery_score, 3) for r in cell_records}
+
+    result = []
+    for bp in blueprints:
+        matrix_with_scores = [
+            {
+                "layer": layer_def["layer"],
+                "stages": [
+                    {
+                        "stage": stage,
+                        "mastery": cell_map.get((bp["blueprint_id"], layer_def["layer"], stage), 0.0),
+                    }
+                    for stage in layer_def["stages"]
+                ],
+            }
+            for layer_def in bp.get("matrix", [])
+        ]
+        result.append({
+            "blueprint_id": bp["blueprint_id"],
+            "blueprint_name": bp["blueprint_name"],
+            "description": bp.get("description", ""),
+            "matrix": matrix_with_scores,
+            "integration_items": bp.get("integration_items", []),
+        })
+
+    return {"blueprints": result}

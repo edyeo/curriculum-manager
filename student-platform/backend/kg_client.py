@@ -57,3 +57,13 @@ async def get_node_blueprints(node_id: str) -> list[dict]:
             return r.json().get("blueprints", [])
         except (httpx.ConnectError, httpx.HTTPStatusError):
             return []
+
+
+async def get_all_blueprints() -> list[dict]:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            r = await client.get(f"{KG_API_URL}/kg/blueprints", headers=HEADERS)
+            r.raise_for_status()
+            return r.json().get("blueprints", [])
+        except (httpx.ConnectError, httpx.HTTPStatusError):
+            return []
