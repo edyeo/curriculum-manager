@@ -58,4 +58,8 @@ export const api = {
     request('POST', `/interview/sessions/${sessionId}/end`),
   getInterviewSession: (sessionId) =>
     request('GET', `/interview/sessions/${sessionId}`),
+  listInterviewSessions: () =>
+    request('GET', '/interview/sessions'),
+  getInterviewDiagnosis: (sessionId) =>
+    request('GET', `/interview/sessions/${sessionId}/diagnosis`),
 }

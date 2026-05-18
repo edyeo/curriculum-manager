@@ -153,6 +153,44 @@ async def start_session(
     }
 
 
+# ── GET /interview/sessions ──────────────────────────────────────────────────
+
+@router.get("/sessions")
+def list_sessions(
+    db: Session = Depends(get_db),
+    current_student: Student = Depends(auth_utils.get_current_student),
+):
+    """완료된 인터뷰 세션 목록 + 진단 요약 반환."""
+    sessions = (
+        db.query(InterviewSession)
+        .filter(
+            InterviewSession.student_id == current_student.id,
+            InterviewSession.status == "completed",
+        )
+        .order_by(InterviewSession.started_at.desc())
+        .all()
+    )
+
+    result = []
+    for s in sessions:
+        diagnosis = db.query(InterviewDiagnosis).filter(
+            InterviewDiagnosis.session_id == s.id
+        ).first()
+        turn_count = db.query(InterviewTurn).filter(
+            InterviewTurn.session_id == s.id
+        ).count()
+        result.append({
+            "session_id": s.id,
+            "subject_id": s.subject_id,
+            "overall_band": diagnosis.overall_band if diagnosis else None,
+            "turn_count": turn_count,
+            "started_at": s.started_at.isoformat(),
+            "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+        })
+
+    return {"sessions": result}
+
+
 # ── GET /interview/sessions/{id} ─────────────────────────────────────────────
 
 @router.get("/sessions/{session_id}")
