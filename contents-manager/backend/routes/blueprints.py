@@ -1,7 +1,7 @@
 import uuid, json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -16,6 +16,7 @@ router = APIRouter(prefix="/blueprints", tags=["blueprints"])
 class MatrixLayer(BaseModel):
     layer: str
     stages: List[str]
+    stage_descriptions: Optional[Dict[str, str]] = {}
 
 class BlueprintCreate(BaseModel):
     name: str

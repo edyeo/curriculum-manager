@@ -125,17 +125,27 @@ function BlueprintMatrix({ bp }) {
             <div style={S.stageDescGrid}>
               {bp.matrix.map(ld => {
                 const lc = LAYER_COLORS[ld.layer] || DEFAULT_COLOR
+                const descs = ld.stage_descriptions || {}
+                const hasAnyDesc = Object.values(descs).some(d => d?.trim())
                 return (
                   <div key={ld.layer} style={{ ...S.stageDescCol, borderTop: `2px solid ${lc.bar}` }}>
                     <div style={{ ...S.stageDescLayerLabel, color: lc.text }}>{ld.layer}</div>
-                    {ld.stages.map((st, i) => (
-                      <div key={st.stage} style={S.stageDescRow}>
-                        <span style={{ ...S.stageDescBadge, background: lc.bg, color: lc.text, border: `1px solid ${lc.border}` }}>
-                          {i + 1}. {st.stage}
-                        </span>
-                        <span style={S.stageDescText}>—</span>
-                      </div>
-                    ))}
+                    {ld.stages.map((st, i) => {
+                      const desc = descs[st.stage] || ''
+                      return (
+                        <div key={st.stage} style={S.stageDescRow}>
+                          <span style={{ ...S.stageDescBadge, background: lc.bg, color: lc.text, border: `1px solid ${lc.border}` }}>
+                            {i + 1}. {st.stage}
+                          </span>
+                          <span style={{ ...S.stageDescText, color: desc ? '#4a5568' : '#cbd5e0' }}>
+                            {desc || '설명 없음'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                    {!hasAnyDesc && (
+                      <div style={{ fontSize: 10, color: '#cbd5e0', marginTop: 4 }}>CM에서 설명을 추가하세요</div>
+                    )}
                   </div>
                 )
               })}
