@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Literal
 from database import get_db
-from models import Student, NodeMastery, StudySession, StudyAttempt
+from models import Student, NodeMastery, StudySession, StudyAttempt, BlueprintCellMastery, BlueprintItemMastery
 import auth as auth_utils
 import grader_client
 import kg_client
@@ -208,18 +208,26 @@ async def get_competency(
 ):
     nodes = await kg_client.get_nodes(subject_id)
 
-    attempts = db.query(StudyAttempt).filter(
-        StudyAttempt.student_id == current_student.id
-    ).all()
+    # 사전 로드: 이 학생의 모든 mastery 데이터
+    attempts = db.query(StudyAttempt).filter(StudyAttempt.student_id == current_student.id).all()
     attempt_map: dict[str, dict] = {}
     for a in attempts:
         if not a.blueprint_id:
             continue
-        if a.blueprint_id not in attempt_map:
-            attempt_map[a.blueprint_id] = {"attempt_count": 0, "correct_count": 0}
-        attempt_map[a.blueprint_id]["attempt_count"] += 1
+        s = attempt_map.setdefault(a.blueprint_id, {"attempt_count": 0, "correct_count": 0})
+        s["attempt_count"] += 1
         if a.is_correct:
-            attempt_map[a.blueprint_id]["correct_count"] += 1
+            s["correct_count"] += 1
+
+    cell_records = db.query(BlueprintCellMastery).filter(
+        BlueprintCellMastery.student_id == current_student.id
+    ).all()
+    cell_map = {(r.blueprint_id, r.layer, r.stage): round(r.mastery_score, 3) for r in cell_records}
+
+    item_records = db.query(BlueprintItemMastery).filter(
+        BlueprintItemMastery.student_id == current_student.id
+    ).all()
+    item_map = {r.integration_item_id: round(r.mastery_score, 3) for r in item_records}
 
     result_nodes = []
     for node in nodes:
@@ -238,10 +246,7 @@ async def get_competency(
             pub_count = bp.get("published_question_count", 0)
 
             stats = attempt_map.get(bp_id, {"attempt_count": 0, "correct_count": 0})
-            attempt_count = stats["attempt_count"]
-            correct_count = stats["correct_count"]
-
-            clearance = correct_count / pub_count if pub_count > 0 else 0.0
+            clearance = stats["correct_count"] / pub_count if pub_count > 0 else 0.0
             cleared = clearance >= CLEARANCE_THRESHOLD
 
             if required and not cleared:
@@ -250,6 +255,25 @@ async def get_competency(
             total_weight += weight
             weighted_clearance += weight * clearance
 
+            # IntegrationItem mastery + cell mastery
+            items_out = []
+            for item in bp.get("integration_items", []):
+                iid = item["item_id"]
+                combos_out = [
+                    {
+                        "layer": c["layer"],
+                        "stage": c["stage"],
+                        "cell_mastery": cell_map.get((bp_id, c["layer"], c["stage"]), 0.0),
+                    }
+                    for c in item.get("required_combinations", [])
+                ]
+                items_out.append({
+                    "item_id": iid,
+                    "item_name": item["item_name"],
+                    "mastery_score": item_map.get(iid, 0.0),
+                    "required_combinations": combos_out,
+                })
+
             bp_results.append({
                 "blueprint_id": bp_id,
                 "blueprint_name": bp.get("blueprint_name", ""),
@@ -257,8 +281,9 @@ async def get_competency(
                 "required": required,
                 "clearance": round(clearance, 3),
                 "cleared": cleared,
-                "attempt_count": attempt_count,
-                "correct_count": correct_count,
+                "attempt_count": stats["attempt_count"],
+                "correct_count": stats["correct_count"],
+                "integration_items": items_out,
             })
 
         competency_score = weighted_clearance / total_weight if total_weight > 0 else 0.0

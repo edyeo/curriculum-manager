@@ -80,6 +80,23 @@ class QuestionItem(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
 
+# ── EPIC-007: Question Link Tables ────────────────────────────────────────────
+
+class QuestionEntityLink(Base):
+    __tablename__ = "question_entity_links"
+    question_id = Column(Text, ForeignKey("question_items.id", ondelete="CASCADE"), primary_key=True)
+    entity_id   = Column(Text, nullable=False, primary_key=True)
+
+
+class QuestionMatrixLink(Base):
+    __tablename__ = "question_matrix_links"
+    question_id         = Column(Text, ForeignKey("question_items.id", ondelete="CASCADE"), primary_key=True)
+    blueprint_id        = Column(Text, ForeignKey("blueprints.id", ondelete="CASCADE"), primary_key=True)
+    layer               = Column(Text, nullable=False, primary_key=True)
+    stage               = Column(Text, nullable=False, primary_key=True)
+    integration_item_id = Column(Text, ForeignKey("blueprint_integration_items.id", ondelete="SET NULL"), nullable=True)
+
+
 class GenerationJob(Base):
     __tablename__ = "generation_jobs"
     id = Column(Text, primary_key=True)
