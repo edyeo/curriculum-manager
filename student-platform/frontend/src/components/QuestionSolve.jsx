@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../services/api'
 
-export default function QuestionSolve({ question, onSubmitSuccess, onBack }) {
+export default function QuestionSolve({ question, subjectId, onSubmitSuccess, onBack }) {
   const [answer, setAnswer] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState(null)
@@ -18,7 +18,7 @@ export default function QuestionSolve({ question, onSubmitSuccess, onBack }) {
     setSubmitting(true)
     try {
       const elapsed_ms = Date.now() - startMs.current
-      const res = await api.submitQuestionAnswer(question.id, answer, elapsed_ms)
+      const res = await api.submitQuestionAnswer(question.id, answer, elapsed_ms, subjectId)
       setResult(res)
       if (onSubmitSuccess) onSubmitSuccess(res)
     } catch (e) {

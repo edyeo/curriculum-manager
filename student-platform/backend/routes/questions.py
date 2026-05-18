@@ -79,6 +79,7 @@ async def get_question(
 class SubmitRequest(BaseModel):
     answer: str
     elapsed_ms: Optional[int] = 0
+    subject_id: Optional[str] = None
 
 
 @router.post("/{question_id}/submit")
@@ -116,21 +117,29 @@ async def submit_answer(
     )
     db.add(attempt)
 
-    # entity_id 기반으로 mastery도 갱신 (node_id == entity_id)
+    # subject_id가 있을 때만 NodeMastery upsert
     entity_id = q.get("entity_id")
-    if entity_id:
+    if entity_id and body.subject_id:
         score = result.get("score", 1.0 if result["is_correct"] else 0.0)
         record = db.query(NodeMastery).filter(
             NodeMastery.student_id == current_student.id,
             NodeMastery.node_id == entity_id,
         ).first()
         if record:
-            is_correct = result["is_correct"]
-            if is_correct:
+            if result["is_correct"]:
                 record.mastery_score = min(1.0, record.mastery_score + (1 - record.mastery_score) * 0.3 * score)
             else:
                 record.mastery_score = max(0.0, record.mastery_score - record.mastery_score * 0.2)
             record.attempt_count += 1
+        else:
+            initial = min(1.0, 0.5 + (1 - 0.5) * 0.3 * score) if result["is_correct"] else max(0.0, 0.5 - 0.5 * 0.2)
+            db.add(NodeMastery(
+                student_id=current_student.id,
+                node_id=entity_id,
+                subject_id=body.subject_id,
+                mastery_score=initial,
+                attempt_count=1,
+            ))
 
     db.commit()
 
