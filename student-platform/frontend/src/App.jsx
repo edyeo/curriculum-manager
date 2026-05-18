@@ -6,11 +6,12 @@ import ConceptMap from './components/ConceptMap'
 import QuestionSolver from './components/QuestionSolver'
 import ResultView from './components/ResultView'
 import MasteryDashboard from './components/MasteryDashboard'
+import BlueprintMastery from './components/BlueprintMastery'
 import QuestionBrowse from './components/QuestionBrowse'
 import QuestionSolve from './components/QuestionSolve'
 
-const TAB = { MAP: 'map', BROWSE: 'browse', MASTERY: 'mastery' }
-const VIEWS = { LOGIN: 'login', REGISTER: 'register', MAP: 'map', SOLVER: 'solver', RESULT: 'result', MASTERY: 'mastery', BROWSE: 'browse', QUESTION_SOLVE: 'question_solve' }
+const TAB = { MAP: 'map', BROWSE: 'browse', MASTERY: 'mastery', BLUEPRINT: 'blueprint' }
+const VIEWS = { LOGIN: 'login', REGISTER: 'register', MAP: 'map', SOLVER: 'solver', RESULT: 'result', MASTERY: 'mastery', BROWSE: 'browse', QUESTION_SOLVE: 'question_solve', BLUEPRINT: 'blueprint' }
 
 const tabOf = (view) => {
   if (view === VIEWS.SOLVER || view === VIEWS.RESULT) return TAB.MAP
@@ -139,9 +140,10 @@ export default function App() {
       {/* Tab nav */}
       <nav style={S.tabNav}>
         {[
-          [TAB.MAP,     '개념 맵'],
-          [TAB.BROWSE,  '문제 탐색'],
-          [TAB.MASTERY, '이해도 현황'],
+          [TAB.MAP,       '개념 맵'],
+          [TAB.BROWSE,    '문제 탐색'],
+          [TAB.MASTERY,   '이해도 현황'],
+          [TAB.BLUEPRINT, 'Blueprint'],
         ].map(([tab, label]) => (
           <button
             key={tab}
@@ -186,6 +188,10 @@ export default function App() {
 
         {view === VIEWS.MASTERY && (
           <MasteryDashboard subjectId={selectedSubject?.id} graphData={graphData} />
+        )}
+
+        {view === VIEWS.BLUEPRINT && (
+          <BlueprintMastery />
         )}
 
         {view === VIEWS.BROWSE && (

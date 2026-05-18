@@ -13,6 +13,7 @@ async def grade(
     correct_answer: str,
     user_answer: str,
     explanation: str = "",
+    matrix_cells: list = None,
 ) -> dict:
     payload = {
         "question_type": question_type,
@@ -20,6 +21,7 @@ async def grade(
         "correct_answer": correct_answer,
         "user_answer": user_answer,
         "explanation": explanation,
+        "matrix_cells": matrix_cells or [],
     }
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:

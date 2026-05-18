@@ -54,6 +54,34 @@ class StudyAttempt(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ── EPIC-007: Blueprint Matrix Mastery ────────────────────────────────────────
+
+class BlueprintCellMastery(Base):
+    """Blueprint matrix 셀(layer/stage) 단위 역량 점수."""
+    __tablename__ = "blueprint_cell_mastery"
+    id            = Column(Integer, primary_key=True)
+    student_id    = Column(Integer, ForeignKey("students.id"), nullable=False)
+    blueprint_id  = Column(String, nullable=False)
+    layer         = Column(String, nullable=False)
+    stage         = Column(String, nullable=False)
+    mastery_score = Column(Float, default=0.0)
+    attempt_count = Column(Integer, default=0)
+    updated_at    = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("student_id", "blueprint_id", "layer", "stage", name="uq_cell_mastery"),)
+
+
+class BlueprintItemMastery(Base):
+    """IntegrationItem 단위 역량 점수 (required_combinations 셀 min)."""
+    __tablename__ = "blueprint_item_mastery"
+    id                  = Column(Integer, primary_key=True)
+    student_id          = Column(Integer, ForeignKey("students.id"), nullable=False)
+    integration_item_id = Column(String, nullable=False)
+    mastery_score       = Column(Float, default=0.0)
+    attempt_count       = Column(Integer, default=0)
+    updated_at          = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("student_id", "integration_item_id", name="uq_item_mastery"),)
+
+
 # ── EPIC-007: Interview Agent ─────────────────────────────────────────────────
 
 class InterviewSession(Base):

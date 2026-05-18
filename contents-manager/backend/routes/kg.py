@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Subject, SubjectNode, SubjectEdge, Blueprint, QuestionItem
+import json
+from models import Subject, SubjectNode, SubjectEdge, Blueprint, BlueprintIntegrationItem, QuestionItem
 import auth as auth_utils
 import file_db
 import gateway_client
@@ -126,15 +127,57 @@ def kg_node_blueprints(
         .group_by(Blueprint.id)
         .all()
     )
-    return {
-        "blueprints": [
-            {
-                "blueprint_id": r.id,
-                "blueprint_name": r.name,
-                "weight": r.weight if r.weight is not None else 1.0,
-                "required": r.required if r.required is not None else False,
-                "published_question_count": r.published_question_count,
-            }
-            for r in rows
-        ]
-    }
+    result = []
+    for r in rows:
+        items = db.query(BlueprintIntegrationItem).filter(
+            BlueprintIntegrationItem.blueprint_id == r.id
+        ).all()
+        result.append({
+            "blueprint_id": r.id,
+            "blueprint_name": r.name,
+            "weight": r.weight if r.weight is not None else 1.0,
+            "required": r.required if r.required is not None else False,
+            "published_question_count": r.published_question_count,
+            "integration_items": [
+                {
+                    "item_id": item.id,
+                    "item_name": item.name,
+                    "required_combinations": json.loads(item.required_combinations) if item.required_combinations else [],
+                }
+                for item in items
+            ],
+        })
+    return {"blueprints": result}
+
+
+# ── All Blueprints (matrix template) ─────────────────────────────────────────
+
+@router.get("/blueprints")
+def kg_all_blueprints(
+    db: Session = Depends(get_db),
+    _=Depends(auth_utils.verify_service_token),
+):
+    blueprints = db.query(Blueprint).order_by(Blueprint.created_at.desc()).all()
+    result = []
+    for bp in blueprints:
+        matrix = json.loads(bp.matrix) if bp.matrix else []
+        if not matrix:
+            continue
+        items = db.query(BlueprintIntegrationItem).filter(
+            BlueprintIntegrationItem.blueprint_id == bp.id
+        ).all()
+        result.append({
+            "blueprint_id": bp.id,
+            "blueprint_name": bp.name,
+            "description": bp.description or "",
+            "matrix": matrix,
+            "integration_items": [
+                {
+                    "item_id": item.id,
+                    "item_name": item.name,
+                    "required_combinations": json.loads(item.required_combinations) if item.required_combinations else [],
+                }
+                for item in items
+            ],
+        })
+    return {"blueprints": result}

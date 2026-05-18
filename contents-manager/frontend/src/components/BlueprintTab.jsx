@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import * as api from '../services/contentsApi.js'
 
 const DEFAULT_MATRIX = [
-  { layer: 'Seed', stages: ['인식', '리스크', '통제'] },
-  { layer: 'Concept', stages: ['원리', '매핑', '대안'] },
-  { layer: 'TechStack', stages: ['스펙', '디버깅', '전환'] },
+  { layer: 'Seed',      stages: ['인식', '리스크', '통제'], stage_descriptions: {} },
+  { layer: 'Concept',   stages: ['원리', '매핑', '대안'],   stage_descriptions: {} },
+  { layer: 'TechStack', stages: ['스펙', '디버깅', '전환'], stage_descriptions: {} },
 ]
 
 export default function BlueprintTab() {
@@ -36,7 +36,9 @@ export default function BlueprintTab() {
   const handleSelectBlueprint = async (bp) => {
     const detail = await api.getBlueprint(bp.id)
     setSelected(detail)
-    setMatrix(detail.matrix?.length ? detail.matrix : DEFAULT_MATRIX)
+    const base = detail.matrix?.length ? detail.matrix : DEFAULT_MATRIX
+    // stage_descriptions 필드 보정 (기존 데이터에 없을 수 있음)
+    setMatrix(base.map(row => ({ ...row, stage_descriptions: row.stage_descriptions || {} })))
     setMatrixDirty(false)
     setAddingStage({})
     setRubricWeight(detail.weight ?? 1.0)
@@ -57,8 +59,21 @@ export default function BlueprintTab() {
 
   // 인지 단계 삭제
   const handleRemoveStage = (layer, stage) => {
+    setMatrix(prev => prev.map(row => {
+      if (row.layer !== layer) return row
+      const descs = { ...(row.stage_descriptions || {}) }
+      delete descs[stage]
+      return { ...row, stages: row.stages.filter(s => s !== stage), stage_descriptions: descs }
+    }))
+    setMatrixDirty(true)
+  }
+
+  // stage 설명 수정
+  const handleStageDesc = (layer, stage, value) => {
     setMatrix(prev => prev.map(row =>
-      row.layer === layer ? { ...row, stages: row.stages.filter(s => s !== stage) } : row
+      row.layer === layer
+        ? { ...row, stage_descriptions: { ...(row.stage_descriptions || {}), [stage]: value } }
+        : row
     ))
     setMatrixDirty(true)
   }
@@ -275,6 +290,35 @@ export default function BlueprintTab() {
                   ))}
                 </tbody>
               </table>
+            </section>
+
+            {/* Stage 설명 */}
+            <section style={{ marginBottom: 28 }}>
+              <h3 style={{ color: '#90cdf4', fontSize: 14, margin: '0 0 12px 0' }}>Stage 기준 설명</h3>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {matrix.map(row => (
+                  <div key={row.layer} style={{ flex: 1, background: '#1a202c', borderRadius: 8, padding: '12px 14px' }}>
+                    <div style={{ color: '#a0aec0', fontSize: 12, fontWeight: 600, marginBottom: 10 }}>{row.layer}</div>
+                    {(row.stages || []).map(stage => (
+                      <div key={stage} style={{ marginBottom: 10 }}>
+                        <div style={{ color: '#e2e8f0', fontSize: 12, marginBottom: 4 }}>{stage}</div>
+                        <textarea
+                          rows={2}
+                          value={(row.stage_descriptions || {})[stage] || ''}
+                          onChange={e => handleStageDesc(row.layer, stage, e.target.value)}
+                          placeholder="이 단계의 평가 기준 설명..."
+                          style={{
+                            width: '100%', background: '#2d3748', border: '1px solid #4a5568',
+                            borderRadius: 4, color: '#e2e8f0', fontSize: 12,
+                            padding: '6px 8px', resize: 'vertical', outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </section>
 
             {/* Integration Items */}
