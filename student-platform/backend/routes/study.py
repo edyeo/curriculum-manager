@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Literal
 from database import get_db
-from models import Student, NodeMastery, StudySession
+from models import Student, NodeMastery, StudySession, StudyAttempt
 import auth as auth_utils
 import grader_client
 import kg_client
@@ -192,3 +192,85 @@ async def recommend(
         "recommended_node": target_node,
         "recommended_question": recommended_question,
     }
+
+
+# ── Competency ────────────────────────────────────────────────────────────────
+
+CLEARANCE_THRESHOLD = 0.7
+REQUIRED_COMPETENCY_CAP = 0.5
+
+
+@router.get("/competency")
+async def get_competency(
+    subject_id: str,
+    db: Session = Depends(get_db),
+    current_student: Student = Depends(auth_utils.get_current_student),
+):
+    nodes = await kg_client.get_nodes(subject_id)
+
+    attempts = db.query(StudyAttempt).filter(
+        StudyAttempt.student_id == current_student.id
+    ).all()
+    attempt_map: dict[str, dict] = {}
+    for a in attempts:
+        if not a.blueprint_id:
+            continue
+        if a.blueprint_id not in attempt_map:
+            attempt_map[a.blueprint_id] = {"attempt_count": 0, "correct_count": 0}
+        attempt_map[a.blueprint_id]["attempt_count"] += 1
+        if a.is_correct:
+            attempt_map[a.blueprint_id]["correct_count"] += 1
+
+    result_nodes = []
+    for node in nodes:
+        node_id = node["id"]
+        blueprints = await kg_client.get_node_blueprints(node_id)
+
+        bp_results = []
+        total_weight = 0.0
+        weighted_clearance = 0.0
+        has_required_uncleared = False
+
+        for bp in blueprints:
+            bp_id = bp["blueprint_id"]
+            weight = bp.get("weight", 1.0) or 1.0
+            required = bp.get("required", False)
+            pub_count = bp.get("published_question_count", 0)
+
+            stats = attempt_map.get(bp_id, {"attempt_count": 0, "correct_count": 0})
+            attempt_count = stats["attempt_count"]
+            correct_count = stats["correct_count"]
+
+            clearance = correct_count / pub_count if pub_count > 0 else 0.0
+            cleared = clearance >= CLEARANCE_THRESHOLD
+
+            if required and not cleared:
+                has_required_uncleared = True
+
+            total_weight += weight
+            weighted_clearance += weight * clearance
+
+            bp_results.append({
+                "blueprint_id": bp_id,
+                "blueprint_name": bp.get("blueprint_name", ""),
+                "weight": weight,
+                "required": required,
+                "clearance": round(clearance, 3),
+                "cleared": cleared,
+                "attempt_count": attempt_count,
+                "correct_count": correct_count,
+            })
+
+        competency_score = weighted_clearance / total_weight if total_weight > 0 else 0.0
+        if has_required_uncleared:
+            competency_score = min(competency_score, REQUIRED_COMPETENCY_CAP)
+
+        result_nodes.append({
+            "node_id": node_id,
+            "node_name": node.get("name", ""),
+            "competency_score": round(competency_score, 3),
+            "blueprints": bp_results,
+            "required_blueprint_cleared": not has_required_uncleared,
+        })
+
+    return {"nodes": result_nodes}

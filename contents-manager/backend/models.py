@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Text, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Boolean, Column, Float, Text, ForeignKey, TIMESTAMP, func
 from database import Base
 
 
@@ -43,6 +43,8 @@ class Blueprint(Base):
     description = Column(Text)
     matrix = Column(Text)  # JSON: {layer: [cognitive_stage, ...]}
     owner_id = Column(Text, ForeignKey("users.id"), nullable=False)
+    weight = Column(Float, default=1.0)
+    required = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 

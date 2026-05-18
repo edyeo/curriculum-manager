@@ -44,4 +44,6 @@ export const api = {
     request('GET', `/study/mastery${subjectId ? `?subject_id=${subjectId}` : ''}`),
   getRecommend: (subjectId, currentNodeId) =>
     request('GET', `/study/recommend?subject_id=${subjectId}${currentNodeId ? `&current_node_id=${currentNodeId}` : ''}`),
+  getCompetency: (subjectId) =>
+    request('GET', `/study/competency?subject_id=${subjectId}`),
 }

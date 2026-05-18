@@ -4,9 +4,10 @@ Authenticated via X-Service-Token header (not editor JWT).
 Consumed by student-platform and any future KG consumers.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Subject, SubjectNode, SubjectEdge
+from models import Subject, SubjectNode, SubjectEdge, Blueprint, QuestionItem
 import auth as auth_utils
 import file_db
 import gateway_client
@@ -102,3 +103,38 @@ async def kg_questions(
         return await gateway_client.get_questions(node_id)
     except Exception:
         return {"questions": []}
+
+
+# ── Blueprints per Node ───────────────────────────────────────────────────────
+
+@router.get("/nodes/{node_id}/blueprints")
+def kg_node_blueprints(
+    node_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(auth_utils.verify_service_token),
+):
+    rows = (
+        db.query(
+            Blueprint.id,
+            Blueprint.name,
+            Blueprint.weight,
+            Blueprint.required,
+            sqlfunc.count(QuestionItem.id).label("published_question_count"),
+        )
+        .join(QuestionItem, QuestionItem.blueprint_id == Blueprint.id)
+        .filter(QuestionItem.entity_id == node_id, QuestionItem.status == "published")
+        .group_by(Blueprint.id)
+        .all()
+    )
+    return {
+        "blueprints": [
+            {
+                "blueprint_id": r.id,
+                "blueprint_name": r.name,
+                "weight": r.weight if r.weight is not None else 1.0,
+                "required": r.required if r.required is not None else False,
+                "published_question_count": r.published_question_count,
+            }
+            for r in rows
+        ]
+    }
