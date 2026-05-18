@@ -37,3 +37,18 @@ class StudySession(Base):
     feedback = Column(Text)
     time_taken_seconds = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class StudyAttempt(Base):
+    """Question Bank 문항에 대한 학생 풀이 이력."""
+    __tablename__ = "study_attempts"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    question_id = Column(String, nullable=False)   # QuestionItem.id (CM 외부 참조)
+    blueprint_id = Column(String, nullable=True)
+    user_answer = Column(Text, nullable=False)
+    is_correct = Column(Boolean, nullable=False)
+    score = Column(Float)
+    feedback = Column(Text)
+    elapsed_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -54,6 +54,8 @@ def _question_to_dict(q: QuestionItem) -> dict:
         "correct_answer": q.correct_answer,
         "explanation": q.explanation,
         "node_snapshot": json.loads(q.node_snapshot) if q.node_snapshot else None,
+        "question_type": q.question_type or "MCQ",
+        "difficulty": q.difficulty or "medium",
         "status": q.status,
         "created_at": q.created_at.isoformat() if q.created_at else None,
         "updated_at": q.updated_at.isoformat() if q.updated_at else None,
@@ -191,8 +193,10 @@ def list_questions(
     blueprint_id: Optional[str] = None,
     entity_id: Optional[str] = None,
     status: Optional[str] = None,
+    question_type: Optional[str] = None,
+    difficulty: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth_utils.get_current_user),
+    _=Depends(auth_utils.get_user_or_service),
 ):
     q = db.query(QuestionItem)
     if blueprint_id:
@@ -201,8 +205,24 @@ def list_questions(
         q = q.filter(QuestionItem.entity_id == entity_id)
     if status:
         q = q.filter(QuestionItem.status == status)
+    if question_type:
+        q = q.filter(QuestionItem.question_type == question_type)
+    if difficulty:
+        q = q.filter(QuestionItem.difficulty == difficulty)
     questions = q.order_by(QuestionItem.created_at.desc()).all()
     return {"questions": [_question_to_dict(qi) for qi in questions]}
+
+
+@router.get("/questions/{question_id}")
+def get_question(
+    question_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(auth_utils.get_user_or_service),
+):
+    qi = db.query(QuestionItem).filter(QuestionItem.id == question_id).first()
+    if not qi:
+        raise HTTPException(404, "Question not found")
+    return _question_to_dict(qi)
 
 
 @router.post("/questions", status_code=201)
@@ -253,6 +273,42 @@ def update_question(
     return _question_to_dict(qi)
 
 
+@router.post("/questions/{question_id}/unpublish")
+def unpublish_question(
+    question_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_utils.get_current_user),
+):
+    """출제 취소: published → draft"""
+    qi = db.query(QuestionItem).filter(QuestionItem.id == question_id).first()
+    if not qi:
+        raise HTTPException(404, "Question not found")
+    if qi.status != "published":
+        raise HTTPException(400, "Only published questions can be unpublished")
+    qi.status = "draft"
+    db.commit()
+    db.refresh(qi)
+    return _question_to_dict(qi)
+
+
+@router.post("/questions/{question_id}/archive")
+def archive_question(
+    question_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_utils.get_current_user),
+):
+    """보관: published → archived"""
+    qi = db.query(QuestionItem).filter(QuestionItem.id == question_id).first()
+    if not qi:
+        raise HTTPException(404, "Question not found")
+    if qi.status != "published":
+        raise HTTPException(400, "Only published questions can be archived")
+    qi.status = "archived"
+    db.commit()
+    db.refresh(qi)
+    return _question_to_dict(qi)
+
+
 @router.post("/questions/{question_id}/publish")
 def publish_question(
     question_id: str,
@@ -280,5 +336,7 @@ def delete_question(
     qi = db.query(QuestionItem).filter(QuestionItem.id == question_id).first()
     if not qi:
         raise HTTPException(404, "Question not found")
+    if qi.status == "published":
+        raise HTTPException(409, "Published questions must be archived before deletion")
     db.delete(qi)
     db.commit()

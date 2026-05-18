@@ -28,3 +28,16 @@ def init_db():
         QuestionItem, GenerationJob,
     )
     Base.metadata.create_all(bind=engine)
+    _migrate_question_items()
+
+
+def _migrate_question_items():
+    """Add question_type / difficulty columns to existing question_items tables."""
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        for col, default in [("question_type", "MCQ"), ("difficulty", "medium")]:
+            try:
+                conn.execute(text(f"ALTER TABLE question_items ADD COLUMN {col} TEXT DEFAULT '{default}'"))
+                conn.commit()
+            except Exception:
+                pass  # column already exists

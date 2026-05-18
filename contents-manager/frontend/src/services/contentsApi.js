@@ -144,3 +144,12 @@ export const publishWorkbenchQuestion = (id) =>
 
 export const deleteWorkbenchQuestion = (id) =>
   fetch(`${BASE}/question-workbench/questions/${id}`, { method: 'DELETE', headers: headers() }).then(handle)
+
+export const getWorkbenchQuestion = (id) =>
+  fetch(`${BASE}/question-workbench/questions/${id}`, { headers: headers() }).then(handle)
+
+export const unpublishWorkbenchQuestion = (id) =>
+  fetch(`${BASE}/question-workbench/questions/${id}/unpublish`, { method: 'POST', headers: headers() }).then(handle)
+
+export const archiveWorkbenchQuestion = (id) =>
+  fetch(`${BASE}/question-workbench/questions/${id}/archive`, { method: 'POST', headers: headers() }).then(handle)

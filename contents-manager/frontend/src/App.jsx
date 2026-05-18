@@ -7,6 +7,7 @@ import ResearchTab from './components/ResearchTab.jsx'
 import AiLinkModal from './components/AiLinkModal.jsx'
 import BlueprintTab from './components/BlueprintTab.jsx'
 import QuestionWorkbenchTab from './components/QuestionWorkbenchTab.jsx'
+import QuestionBankTab from './components/QuestionBankTab.jsx'
 import * as api from './services/contentsApi.js'
 
 export default function App() {
@@ -148,6 +149,7 @@ export default function App() {
             ['research', '리서치'],
             ['blueprint', '출제기준'],
             ['workbench', '문제출제'],
+            ['question-bank', '문제조회'],
           ].map(([t, label]) => (
           <button key={t} className={`tab-btn ${currentTab === t ? 'active' : ''}`} onClick={() => setCurrentTab(t)}>
             {label}
@@ -196,6 +198,7 @@ export default function App() {
             {currentTab === 'research' && <ResearchTab subjectId={selectedSubjectId} />}
             {currentTab === 'blueprint' && <BlueprintTab />}
             {currentTab === 'workbench' && <QuestionWorkbenchTab nodes={nodes} />}
+            {currentTab === 'question-bank' && <QuestionBankTab />}
           </>
         )}
       </main>
