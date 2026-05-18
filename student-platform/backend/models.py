@@ -57,18 +57,13 @@ class StudyAttempt(Base):
 # ── EPIC-007: Interview Agent ─────────────────────────────────────────────────
 
 class InterviewSession(Base):
-    """가상 인터뷰 세션. subject 단위로 시작되며 완료 시 mastery를 DB에 반영."""
+    """가상 인터뷰 세션. 실행 중 상태는 서버 메모리에서만 관리하며 완료 시 DB에 반영."""
     __tablename__ = "interview_sessions"
     id = Column(Integer, primary_key=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
     subject_id = Column(String, nullable=False)
     status = Column(String, default="active")          # active | completed
-    knowledge_snapshot = Column(JSON)                  # 세션 시작 시점 {node_id: mastery_score}
-    working_mastery = Column(JSON)                     # 세션 중 in-memory 갱신 상태
-    current_question = Column(Text)                    # 현재 미답변 질문
-    current_target_nodes = Column(JSON)                # 현재 질문의 대상 노드 ID 목록
-    consecutive_followups = Column(Integer, default=0) # 연속 follow-up 횟수
-    turn_count = Column(Integer, default=0)
+    knowledge_snapshot = Column(JSON)                  # 세션 시작 시점 초기 mastery 기록용
     started_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
 
