@@ -72,33 +72,13 @@ PRD는 모델을 `claude-sonnet-4-6`으로 명시했다. 그러나 agent-platfor
 
 ---
 
-## ADR-003: Blueprint Clearance 인터뷰 연동 제외
+## ADR-003: Blueprint Clearance 인터뷰 연동 제외 ~~(초기 결정)~~
 
 **날짜:** 2026-05-19
 
-**상태:** Accepted (범위 축소)
+**상태:** ~~Accepted~~ → **Superseded by ADR-007**
 
-### Context
-
-PRD는 Knowledge Snapshot에 `node_mastery + blueprint_clearance`를 포함하고, 인터뷰 종료 시 blueprint clearance를 DB에 반영하도록 명시했다.
-
-Blueprint clearance(EPIC-006)는 `blueprint_item`별 성취 여부를 `node_mastery`의 가중 합산으로 판정하는 파생 지표다.
-
-### Decision
-
-인터뷰 플로우에서 blueprint clearance를 제외한다. 세션 지식 상태(Knowledge Snapshot)는 `node_mastery`만 포함한다.
-
-인터뷰 종료 시 `node_mastery`만 EMA로 갱신·반영하며, blueprint clearance 재계산 트리거는 현재 구현에 포함하지 않는다.
-
-### Consequences
-
-**장점**
-- 구현 복잡도 감소: blueprint weighted score 로직을 인터뷰 루프 안에 포함할 필요 없음
-- 인터뷰의 핵심 피드백 루프(node mastery EMA)에 집중 가능
-
-**단점 / 미완**
-- 인터뷰 후 blueprint clearance가 자동 갱신되지 않음 → 학생이 별도로 학습 활동을 수행해야 blueprint 상태가 반영됨
-- ADDENDUM 미완 사항 목록에 등록. 추후 인터뷰 세션 종료 시 `compute_clearance(student_id, subject_id)` 트리거 추가 필요
+초기 구현에서는 범위 축소를 이유로 blueprint 연동을 제외했으나, 이후 ADR-007에서 번복되었다. 이력 보존을 위해 항목을 유지한다.
 
 ---
 
@@ -199,3 +179,78 @@ PRD의 Adaptive Question Strategy는 follow-up / pivot 선택 기준(점수 임�
 - 인터뷰가 특정 노드에 과집중되는 문제 방지
 - 노드 커버리지 향상: 15턴 내 더 많은 약점 노드를 순회 가능
 - 튜닝 가능: `MAX_CONSECUTIVE_FOLLOWUPS` 값은 향후 사용자 데이터로 조정
+
+---
+
+## ADR-007: Blueprint를 질문 생성·평가·mastery 갱신에 통합
+
+**날짜:** 2026-05-19
+
+**상태:** Accepted (ADR-003 번복)
+
+### Context
+
+ADR-003에서 blueprint clearance 연동을 제외했으나, 이는 다음 문제를 남겼다:
+
+1. **질문의 역량 축 부재:** `generate_question`이 노드 이름과 설명만 참조하여 LLM이 어떤 역량 차원(layer × stage)을 검증해야 하는지 알 수 없었다.
+2. **평가의 모호성:** `evaluate_answer`가 blueprint 관점 없이 전반적인 점수만 산출해, 피드백이 역량 차원과 무관하게 추상적이었다.
+3. **blueprint mastery 미반영:** 인터뷰 수행 후 `NodeMastery`만 갱신되고 `BlueprintCellMastery` / `BlueprintItemMastery`는 변경되지 않아, 인터뷰 결과가 blueprint matrix에 반영되지 않았다.
+
+### Decision
+
+세 단계 모두에 blueprint 정보를 통합한다.
+
+**1. 세션 시작 시 blueprint 선로드**
+
+```python
+# asyncio.gather로 전체 노드의 blueprint를 병렬 로드
+blueprint_results = await asyncio.gather(
+    *[kg_client.get_node_blueprints(n["id"]) for n in nodes],
+    return_exceptions=True,
+)
+node_blueprints = { nodes[i]["id"]: blueprint_results[i] ... }
+# _sessions[id]["node_blueprints"] = node_blueprints  (불변, 세션 내내 참조)
+```
+
+**2. 질문 생성 시 blueprint 컨텍스트 주입**
+
+`generate_question(target_blueprints=...)` 파라미터 추가. 프롬프트에 평가 대상 blueprint명과 역량 차원(`layer×stage`) 포함:
+
+```
+Competency blueprints to assess (frame your question to test these skill dimensions):
+- 알고리즘 이해도 (skill dimensions: knowledge×recall, apply×problem_solving)
+- 구현 능력 (skill dimensions: apply×implementation)
+```
+
+**3. 답변 평가 시 blueprint 기준 적용**
+
+`evaluate_answer(target_blueprints=...)` 파라미터 추가. LLM에게 blueprint 역량 차원별로 어떤 부분이 충족·미충족됐는지 피드백 생성을 지시한다.
+
+**4. 세션 종료 시 BlueprintCellMastery / BlueprintItemMastery EMA 갱신**
+
+```python
+def _commit_blueprint_mastery(student_id, assessed_node_ids, final_mastery, node_blueprints, db):
+    for node_id in assessed_node_ids:
+        score = final_mastery[node_id]
+        for bp in node_blueprints[node_id]:
+            for item in bp["integration_items"]:
+                for combo in item["required_combinations"]:
+                    # BlueprintCellMastery EMA(α=0.3)
+                for cell_scores → min → BlueprintItemMastery EMA(α=0.3)
+```
+
+`node_mastery`는 EMA이므로 `BlueprintCellMastery`/`BlueprintItemMastery`도 동일한 α=0.3을 사용한다.
+
+### Consequences
+
+**장점**
+- 질문이 blueprint 역량 차원을 명시적으로 타겟해 측정의 타당성 향상
+- 피드백이 "어떤 차원(Recall / Apply × Problem-Solving)에서 부족했는가"를 구체적으로 제시
+- 인터뷰 수행 후 blueprint matrix(BlueprintCellMastery / BlueprintItemMastery)에 결과 반영 → 학생 역량 현황이 인터뷰로도 업데이트됨
+
+**제약**
+- 세션 시작 시 노드 수만큼 KG API 호출 발생 (asyncio.gather로 병렬화하여 완화)
+- `StudyAttempt` 기반 clearance 비율(`correct_count / pub_count`)은 인터뷰로 갱신되지 않음 — 인터뷰는 문항 은행 풀이와 별개의 평가 채널이기 때문
+
+**설계 경계**
+- `BlueprintCellMastery` 갱신에 쓰이는 score는 해당 노드의 최종 EMA mastery 단일값이다. 향후 개선 시 turn별 cell 단위 LLM 평가(cell_scores JSON)를 도입해 더 세밀한 갱신이 가능하다.
