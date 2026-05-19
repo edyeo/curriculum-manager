@@ -158,3 +158,75 @@ override가 있으면 DB 조회 없이 해당 값을 사용.
 - 채점 연동: correct_answer 있을 때 정답률 자동 계산 및 집계
 - SSE 기반 실시간 진행 상황 push
 - 시뮬레이션 결과 CSV 다운로드
+
+---
+
+## ADDENDUM — 구현 중 변경·추가된 사항
+
+> PRD 확정 후 개발 과정에서 결정된 내용을 기록한다. 상세 배경은 [ADR.md](./ADR.md)를 참조.
+
+### 추가된 기능
+
+#### persona_agent.py 신설 (ADR-001)
+
+`virtual-student-api`에 `persona_agent.py` 모듈을 신규 추가한다.  
+학생 답변 생성 역할을 `interview_agent`에서 분리하여 전담시킨다.
+
+- MCQ / OX 질문: 선택지 목록을 프롬프트에 포함, label(A/B/C/D)만 응답 (`max_tokens=5`)
+- 서술형 질문: 페르소나 프롬프트 기반 자유 서술 (`max_tokens=400`)
+- `conversation_history` 파라미터로 멀티턴 맥락 전달 지원
+
+#### Simple 모드 Grader Agent 연동 (ADR-004)
+
+PRD Backlog 항목 "채점 연동"을 조기 구현한다.  
+`correct_answer`가 있는 질문에 한해 `GATEWAY_URL/grade`를 호출하여 점수·피드백을 결과에 포함한다.
+
+- MCQ / OX: exact match 채점
+- SHORT_ANSWER / DESCRIPTIVE: LLM 기반 채점 (0.0~1.0)
+- `correct_answer` 미제공 시 `score=null`로 graceful skip
+
+#### Interview Session Step-by-step API (ADR-002)
+
+PRD의 단일 배치 엔드포인트(`/interview/virtual-run`) 대신 3개 엔드포인트로 구현한다:
+
+| 엔드포인트 | 설명 |
+|---|---|
+| `POST /api/simulate/interview/start` | 세션 생성, 첫 번째 질문 반환 |
+| `POST /api/simulate/interview/{id}/step` | 1턴 실행 (답변 생성 → 평가 → 다음 질문) |
+| `POST /api/simulate/interview/{id}/finish` | 진단 생성, DB 저장, 세션 해제 |
+
+#### 백엔드 Stateless Service 엔드포인트 (ADR-003)
+
+`student-platform/backend`에 4개의 서비스 전용 엔드포인트를 추가한다 (`X-Service-Token` 인증):
+
+```
+POST /interview/service/question      ← generate_question 래퍼
+POST /interview/service/evaluate      ← evaluate_answer 래퍼
+POST /interview/service/next-target   ← select_target_nodes 래퍼
+POST /interview/service/diagnose      ← generate_diagnosis 래퍼
+```
+
+`virtual-student-api`가 이 엔드포인트들을 순서대로 호출하며 인터뷰 루프를 오케스트레이션한다.
+
+### 변경된 설계
+
+#### Interview 모드 학생 선택 1인 제한 (ADR-006)
+
+PRD의 "다중 선택(체크박스)"에서 **Interview 모드만 1인 선택(라디오 버튼)으로 변경**한다.  
+Simple 모드는 기존대로 다중 선택 유지.
+
+#### MCQ 응답 형식 제한 (ADR-005)
+
+`persona_agent`가 MCQ 질문에 선택지 레이블만 응답하도록 강제한다.  
+Grader Agent의 exact match 채점과 형식 일치를 보장하기 위함.
+
+### Backlog 업데이트
+
+| 항목 | 상태 |
+|---|---|
+| feature 조합 → node 타입별 mastery 파생 | Backlog 유지 |
+| 채점 연동 (Simple 모드) | **완료** (ADR-004) |
+| SSE 기반 실시간 진행 상황 push | Backlog 유지 |
+| 시뮬레이션 결과 CSV 다운로드 | Backlog 유지 |
+| 복수 학생 병렬 인터뷰 세션 | Backlog 신규 추가 (ADR-006) |
+| Interview 세션 TTL / GC | Backlog 신규 추가 (ADR-002) |
