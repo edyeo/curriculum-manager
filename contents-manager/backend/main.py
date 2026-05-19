@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db, SessionLocal
 from models import User
 from auth import hash_password
-from routes import auth, subjects, nodes, research, questions, kg, blueprints, question_workbench
+from routes import auth, subjects, nodes, research, questions, kg, blueprints, question_workbench, ingestion
 
 app = FastAPI(title="Contents Manager", version="0.1.0")
 
@@ -23,6 +23,7 @@ app.include_router(research.router, prefix="/api")
 app.include_router(questions.router, prefix="/api")
 app.include_router(blueprints.router, prefix="/api")
 app.include_router(question_workbench.router, prefix="/api")
+app.include_router(ingestion.router, prefix="/api")
 app.include_router(kg.router)
 
 

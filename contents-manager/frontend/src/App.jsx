@@ -8,6 +8,7 @@ import AiLinkModal from './components/AiLinkModal.jsx'
 import BlueprintTab from './components/BlueprintTab.jsx'
 import QuestionWorkbenchTab from './components/QuestionWorkbenchTab.jsx'
 import QuestionBankTab from './components/QuestionBankTab.jsx'
+import IngestionTab from './components/IngestionTab.jsx'
 import * as api from './services/contentsApi.js'
 
 export default function App() {
@@ -150,6 +151,7 @@ export default function App() {
             ['blueprint', '출제기준'],
             ['workbench', '문제출제'],
             ['question-bank', '문제조회'],
+            ['ingestion', 'KG 인제스션'],
           ].map(([t, label]) => (
           <button key={t} className={`tab-btn ${currentTab === t ? 'active' : ''}`} onClick={() => setCurrentTab(t)}>
             {label}
@@ -199,6 +201,7 @@ export default function App() {
             {currentTab === 'blueprint' && <BlueprintTab />}
             {currentTab === 'workbench' && <QuestionWorkbenchTab nodes={nodes} />}
             {currentTab === 'question-bank' && <QuestionBankTab />}
+            {currentTab === 'ingestion' && <IngestionTab />}
           </>
         )}
       </main>
