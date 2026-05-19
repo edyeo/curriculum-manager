@@ -315,6 +315,44 @@ services:
       timeout: 5s
       retries: 3
 
+  # Virtual Student API
+  virtual-student-api:
+    build:
+      context: ../../student-platform/virtual-student-api
+      dockerfile: Dockerfile
+    container_name: virtual-student-api
+    environment:
+      DATABASE_URL: sqlite:////app/data/virtual_students.db
+      KG_API_URL: http://contents-manager-backend:8010
+      KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
+    ports:
+      - "8030:8030"
+    depends_on:
+      - contents-manager-backend
+    volumes:
+      - virtual_student_db:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8030/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Virtual Student UI
+  virtual-student-ui:
+    build:
+      context: ../../student-platform/virtual-student-ui
+      dockerfile: Dockerfile
+    container_name: virtual-student-ui
+    ports:
+      - "3010:3010"
+    depends_on:
+      - virtual-student-api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3010"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local
@@ -325,6 +363,8 @@ volumes:
   research_results:
     driver: local
   cm_db:
+    driver: local
+  virtual_student_db:
     driver: local
 
 networks:

@@ -1,0 +1,9 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+# 코드는 docker-compose.dev.yml에서 volume mount로 제공
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
