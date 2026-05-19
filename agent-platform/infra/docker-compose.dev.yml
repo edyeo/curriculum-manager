@@ -49,3 +49,20 @@ services:
       - /app/node_modules
     ports:
       - "3000:3000"
+
+  virtual-student-api:
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8030", "--reload"]
+    volumes:
+      - ../../student-platform/virtual-student-api:/app
+
+  virtual-student-ui:
+    build:
+      context: ../../student-platform/virtual-student-ui
+      dockerfile: Dockerfile.dev
+    environment:
+      API_PROXY_TARGET: http://virtual-student-api:8030
+    volumes:
+      - ../../student-platform/virtual-student-ui:/app
+      - /app/node_modules
+    ports:
+      - "3010:3010"
