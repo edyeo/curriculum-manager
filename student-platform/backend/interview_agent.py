@@ -75,15 +75,17 @@ def select_target_nodes(
 def generate_question(
     subject_name: str,
     target_nodes: list[dict],
+    target_blueprints: list[dict],
     conversation_history: list[dict],
     action: str,
     mastery_level: float,
 ) -> str:
-    """대상 노드에 대한 인터뷰 질문을 동적으로 생성한다."""
+    """대상 노드와 blueprint 평가 기준을 활용해 인터뷰 질문을 동적으로 생성한다."""
 
     node_desc = "\n".join(
         f"- {n.get('name', n['id'])}: {n.get('description', '')}" for n in target_nodes
     )
+    bp_desc = _format_blueprints(target_blueprints)
     history_text = _format_history(conversation_history)
     mastery_label = _mastery_label(mastery_level)
 
@@ -108,6 +110,10 @@ def generate_question(
         f"Student mastery level: {mastery_label} ({mastery_level:.2f})",
         f"Instruction: {instruction}",
     ]
+    if bp_desc:
+        user_parts.append(
+            f"Competency blueprints to assess (frame your question to test these skill dimensions):\n{bp_desc}"
+        )
     if history_text:
         user_parts.append(f"Conversation so far:\n{history_text}")
 
@@ -120,31 +126,38 @@ def evaluate_answer(
     question: str,
     answer: str,
     target_nodes: list[dict],
+    target_blueprints: list[dict],
     subject_name: str,
 ) -> dict:
-    """학생 답변을 평가하여 score, feedback, demonstrated_concepts를 반환한다."""
+    """학생 답변을 blueprint 평가 기준에 따라 채점한다."""
 
     node_desc = "\n".join(
         f"- {n.get('name', n['id'])}: {n.get('description', '')}" for n in target_nodes
     )
+    bp_desc = _format_blueprints(target_blueprints)
 
     system = (
         "You are an expert educational evaluator. "
         "Evaluate the student's answer and respond ONLY with a JSON object — no markdown."
     )
 
+    bp_section = (
+        f"\nCompetency blueprints being assessed:\n{bp_desc}\n"
+        if bp_desc else ""
+    )
+
     user = f"""Subject: {subject_name}
 Concepts being tested:
 {node_desc}
-
+{bp_section}
 Question: {question}
 
 Student's answer: {answer}
 
 Return JSON:
 {{
-  "score": <float 0.0-1.0>,
-  "feedback": "<2-3 sentence feedback in Korean>",
+  "score": <float 0.0-1.0 reflecting mastery of the blueprint skill dimensions above>,
+  "feedback": "<2-3 sentence feedback in Korean that references specific blueprint dimensions where the student succeeded or fell short>",
   "demonstrated_concepts": ["<concept name>", ...]
 }}"""
 
@@ -225,6 +238,24 @@ Return JSON evaluating ONLY the assessed nodes above:
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
+
+def _format_blueprints(blueprints: list[dict]) -> str:
+    """blueprint 목록을 프롬프트용 텍스트로 변환한다."""
+    if not blueprints:
+        return ""
+    lines = []
+    for bp in blueprints:
+        combos = []
+        for item in bp.get("integration_items", []):
+            for c in item.get("required_combinations", []):
+                combos.append(f"{c['layer']}×{c['stage']}")
+        unique_combos = list(dict.fromkeys(combos))
+        line = f"- {bp.get('blueprint_name', bp['blueprint_id'])}"
+        if unique_combos:
+            line += f" (skill dimensions: {', '.join(unique_combos)})"
+        lines.append(line)
+    return "\n".join(lines)
+
 
 def _format_history(history: list[dict]) -> str:
     lines = []

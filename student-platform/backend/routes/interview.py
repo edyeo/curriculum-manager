@@ -5,6 +5,7 @@
 DB 쓰기는 세션 정상 종료 시 한 번만 수행한다.
 중도 이탈 = _sessions에서 소멸 = DB 무변경.
 """
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -16,7 +17,10 @@ import auth as auth_utils
 import interview_agent as agent
 import kg_client
 from database import get_db
-from models import InterviewDiagnosis, InterviewSession, InterviewTurn, NodeMastery, Student
+from models import (
+    BlueprintCellMastery, BlueprintItemMastery,
+    InterviewDiagnosis, InterviewSession, InterviewTurn, NodeMastery, Student,
+)
 
 router = APIRouter(prefix="/interview", tags=["interview"])
 
@@ -24,6 +28,7 @@ router = APIRouter(prefix="/interview", tags=["interview"])
 # key: session_id(int)
 # value: {
 #   student_id, subject_id, subject_name, nodes,
+#   node_blueprints,      ← {node_id: [blueprint_list]}  세션 시작 시 로드, 불변
 #   knowledge_snapshot,   ← 시작 시점 mastery (불변)
 #   working_mastery,      ← 매 턴 갱신
 #   current_question, current_target_nodes, consecutive_followups,
@@ -41,6 +46,19 @@ def _get_live(session_id: int, student_id: int) -> dict:
     if state["student_id"] != student_id:
         raise HTTPException(status_code=403, detail="Not your session")
     return state
+
+
+def _get_target_blueprints(state: dict, target_node_ids: list[str]) -> list[dict]:
+    """현재 타겟 노드들의 blueprint 목록을 중복 없이 반환한다."""
+    seen = set()
+    result = []
+    for nid in target_node_ids:
+        for bp in state["node_blueprints"].get(nid, []):
+            bp_id = bp["blueprint_id"]
+            if bp_id not in seen:
+                seen.add(bp_id)
+                result.append(bp)
+    return result
 
 
 def _load_initial_mastery(student_id: int, subject_id: str, db: Session) -> dict[str, float]:
@@ -68,6 +86,65 @@ def _commit_mastery(student_id: int, subject_id: str, final_mastery: dict, db: S
                 mastery_score=score,
                 attempt_count=1,
             ))
+
+
+def _commit_blueprint_mastery(
+    student_id: int,
+    assessed_node_ids: set,
+    final_mastery: dict,
+    node_blueprints: dict,
+    db: Session,
+):
+    """인터뷰에서 평가된 노드의 최종 mastery를 BlueprintCellMastery / BlueprintItemMastery에 EMA로 반영한다."""
+    for node_id in assessed_node_ids:
+        score = final_mastery.get(node_id, 0.5)
+        for bp in node_blueprints.get(node_id, []):
+            bp_id = bp["blueprint_id"]
+            for item in bp.get("integration_items", []):
+                iid = item.get("item_id")
+                cell_scores = []
+                for combo in item.get("required_combinations", []):
+                    layer, stage = combo["layer"], combo["stage"]
+                    record = db.query(BlueprintCellMastery).filter(
+                        BlueprintCellMastery.student_id == student_id,
+                        BlueprintCellMastery.blueprint_id == bp_id,
+                        BlueprintCellMastery.layer == layer,
+                        BlueprintCellMastery.stage == stage,
+                    ).first()
+                    if record:
+                        record.mastery_score = round(
+                            record.mastery_score + (score - record.mastery_score) * 0.3, 4
+                        )
+                        record.attempt_count += 1
+                    else:
+                        db.add(BlueprintCellMastery(
+                            student_id=student_id,
+                            blueprint_id=bp_id,
+                            layer=layer,
+                            stage=stage,
+                            mastery_score=score,
+                            attempt_count=1,
+                        ))
+                    cell_scores.append(score)
+
+                if iid and cell_scores:
+                    item_score = min(cell_scores)
+                    item_rec = db.query(BlueprintItemMastery).filter(
+                        BlueprintItemMastery.student_id == student_id,
+                        BlueprintItemMastery.integration_item_id == iid,
+                    ).first()
+                    if item_rec:
+                        item_rec.mastery_score = round(
+                            item_rec.mastery_score + (item_score - item_rec.mastery_score) * 0.3, 4
+                        )
+                        item_rec.attempt_count += 1
+                    else:
+                        db.add(BlueprintItemMastery(
+                            student_id=student_id,
+                            integration_item_id=iid,
+                            mastery_score=item_score,
+                            attempt_count=1,
+                        ))
 
 
 # ── POST /interview/sessions ─────────────────────────────────────────────────
@@ -100,6 +177,16 @@ async def start_session(
         req.subject_id,
     )
 
+    # 모든 노드의 blueprint를 병렬로 로드
+    blueprint_results = await asyncio.gather(
+        *[kg_client.get_node_blueprints(n["id"]) for n in nodes],
+        return_exceptions=True,
+    )
+    node_blueprints = {
+        nodes[i]["id"]: (blueprint_results[i] if not isinstance(blueprint_results[i], Exception) else [])
+        for i in range(len(nodes))
+    }
+
     # DB에서 초기 mastery 로드
     initial_mastery = _load_initial_mastery(current_student.id, req.subject_id, db)
     for n in nodes:
@@ -109,10 +196,12 @@ async def start_session(
     sorted_nodes = sorted(nodes, key=lambda n: initial_mastery.get(n["id"], 0.5))
     first_target = [sorted_nodes[0]]
     first_target_ids = [sorted_nodes[0]["id"]]
+    first_blueprints = node_blueprints.get(first_target_ids[0], [])
 
     question = agent.generate_question(
         subject_name=subject_name,
         target_nodes=first_target,
+        target_blueprints=first_blueprints,
         conversation_history=[],
         action="pivot",
         mastery_level=initial_mastery.get(first_target_ids[0], 0.5),
@@ -135,6 +224,7 @@ async def start_session(
         "subject_id": req.subject_id,
         "subject_name": subject_name,
         "nodes": nodes,
+        "node_blueprints": node_blueprints,
         "knowledge_snapshot": dict(initial_mastery),
         "working_mastery": dict(initial_mastery),
         "current_question": question,
@@ -265,12 +355,14 @@ async def submit_answer(
     nodes = state["nodes"]
     node_map = {n["id"]: n for n in nodes}
     target_nodes = [node_map[nid] for nid in state["current_target_nodes"] if nid in node_map]
+    target_blueprints = _get_target_blueprints(state, state["current_target_nodes"])
 
     # 답변 평가
     evaluation = agent.evaluate_answer(
         question=state["current_question"],
         answer=req.answer,
         target_nodes=target_nodes,
+        target_blueprints=target_blueprints,
         subject_name=state["subject_name"],
     )
     score = float(evaluation.get("score", 0.5))
@@ -319,6 +411,7 @@ async def submit_answer(
 
     # 다음 질문 생성
     next_target_nodes = [node_map[nid] for nid in next_target_ids if nid in node_map]
+    next_target_blueprints = _get_target_blueprints(state, next_target_ids)
     avg_mastery = (
         sum(state["working_mastery"].get(nid, 0.5) for nid in next_target_ids) / len(next_target_ids)
         if next_target_ids else 0.5
@@ -326,6 +419,7 @@ async def submit_answer(
     next_question = agent.generate_question(
         subject_name=state["subject_name"],
         target_nodes=next_target_nodes,
+        target_blueprints=next_target_blueprints,
         conversation_history=state["turns"],
         action=action,
         mastery_level=avg_mastery,
@@ -403,6 +497,15 @@ async def end_session(
 
     # 4. node_mastery 갱신
     _commit_mastery(current_student.id, state["subject_id"], final_mastery, db)
+
+    # 5. blueprint cell/item mastery 갱신
+    _commit_blueprint_mastery(
+        student_id=current_student.id,
+        assessed_node_ids=assessed_node_ids,
+        final_mastery=final_mastery,
+        node_blueprints=state["node_blueprints"],
+        db=db,
+    )
 
     db.commit()
     db.refresh(diagnosis)
