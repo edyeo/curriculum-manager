@@ -97,3 +97,16 @@ export const fetchKgQuestions = (subjectId) => {
   const q = subjectId ? `?subject_id=${subjectId}` : ''
   return request(`${SIM}/kg-questions${q}`).then(d => d?.questions ?? [])
 }
+
+export const startInterviewSession = (data) =>
+  request(`${SIM}/interview/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
+export const stepInterviewSession = (sessionId) =>
+  request(`${SIM}/interview/${sessionId}/step`, { method: 'POST' })
+
+export const finishInterviewSession = (sessionId) =>
+  request(`${SIM}/interview/${sessionId}/finish`, { method: 'POST' })

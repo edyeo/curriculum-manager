@@ -468,3 +468,314 @@ def get_simulation_run(run_id: str, db: Session = Depends(get_db)):
 async def get_kg_questions(subject_id: Optional[str] = None):
     questions = await _fetch_kg_questions(subject_id or "")
     return {"questions": questions}
+
+
+# ── Interview Session (단계별 실행) ────────────────────────────────────────────
+# 세션 상태는 서버 메모리에서만 관리. 완료(finish) 시 DB에 저장.
+
+import uuid as _uuid_mod
+
+_virt_sessions: dict[str, dict] = {}
+
+MAX_VIRT_TURNS = 8
+
+
+class InterviewStartRequest(BaseModel):
+    virtual_student_id: str
+    subject_id: str
+
+
+class InterviewStepOut(BaseModel):
+    session_id: str
+    turn_number: int
+    question: str
+    answer: str
+    score: float
+    feedback: str
+    next_question: Optional[str] = None
+    done: bool = False
+
+
+class InterviewStartOut(BaseModel):
+    session_id: str
+    student_name: str
+    subject_name: str
+    first_question: str
+    max_turns: int
+
+
+# ── POST /simulate/interview/start ───────────────────────────────────────────
+
+@router.post("/interview/start", response_model=InterviewStartOut)
+async def interview_start(req: InterviewStartRequest, db: Session = Depends(get_db)):
+    student = db.query(VirtualStudent).filter(VirtualStudent.id == req.virtual_student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Virtual student not found")
+
+    fvs = db.query(VirtualStudentFeatureValue).filter(
+        VirtualStudentFeatureValue.virtual_student_id == student.id
+    ).all()
+    persona = _build_persona_prompt(student, fvs)
+    prior_knowledge = _get_prior_knowledge_level(fvs)
+
+    nodes = await kg_client.get_nodes(req.subject_id)
+    if not nodes:
+        raise HTTPException(status_code=404, detail="Subject has no nodes")
+
+    subjects = await kg_client.get_subjects()
+    subject_name = next(
+        (s.get("name", req.subject_id) for s in subjects if s["id"] == req.subject_id),
+        req.subject_id,
+    )
+
+    node_blueprints = await kg_client.get_node_blueprints_bulk(nodes)
+    node_map = {n["id"]: n for n in nodes}
+
+    default_mastery = prior_knowledge
+    working_mastery = {n["id"]: default_mastery for n in nodes}
+    sorted_nodes = sorted(nodes, key=lambda n: working_mastery[n["id"]])
+    current_target_ids = [sorted_nodes[0]["id"]]
+
+    def _get_bps(target_ids):
+        seen, result = set(), []
+        for nid in target_ids:
+            for bp in node_blueprints.get(nid, []):
+                if bp["blueprint_id"] not in seen:
+                    seen.add(bp["blueprint_id"])
+                    result.append(bp)
+        return result
+
+    # 첫 질문 생성
+    target_nodes = [node_map[nid] for nid in current_target_ids if nid in node_map]
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        q_resp = await client.post(
+            f"{STUDENT_PLATFORM_URL}/interview/service/question",
+            json={
+                "subject_name": subject_name,
+                "target_nodes": target_nodes,
+                "target_blueprints": _get_bps(current_target_ids),
+                "conversation_history": [],
+                "action": "pivot",
+                "mastery_level": default_mastery,
+            },
+            headers={"X-Service-Token": KG_SERVICE_TOKEN},
+        )
+        q_resp.raise_for_status()
+        first_question = q_resp.json()["question"]
+
+    session_id = str(_uuid_mod.uuid4())
+    _virt_sessions[session_id] = {
+        "virtual_student_id": student.id,
+        "student_name": student.name,
+        "subject_id": req.subject_id,
+        "subject_name": subject_name,
+        "persona": persona,
+        "nodes": nodes,
+        "node_blueprints": node_blueprints,
+        "node_map": node_map,
+        "working_mastery": working_mastery,
+        "current_target_ids": current_target_ids,
+        "consecutive_followups": 0,
+        "turns": [],
+        "current_question": first_question,
+        "done": False,
+    }
+
+    return InterviewStartOut(
+        session_id=session_id,
+        student_name=student.name,
+        subject_name=subject_name,
+        first_question=first_question,
+        max_turns=MAX_VIRT_TURNS,
+    )
+
+
+# ── POST /simulate/interview/{session_id}/step ───────────────────────────────
+
+@router.post("/interview/{session_id}/step", response_model=InterviewStepOut)
+async def interview_step(session_id: str):
+    state = _virt_sessions.get(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    if state["done"]:
+        raise HTTPException(status_code=400, detail="Session already finished")
+
+    question = state["current_question"]
+    target_ids = state["current_target_ids"]
+    node_map = state["node_map"]
+    nodes = state["nodes"]
+    node_blueprints = state["node_blueprints"]
+    working_mastery = state["working_mastery"]
+
+    def _get_bps(tids):
+        seen, result = set(), []
+        for nid in tids:
+            for bp in node_blueprints.get(nid, []):
+                if bp["blueprint_id"] not in seen:
+                    seen.add(bp["blueprint_id"])
+                    result.append(bp)
+        return result
+
+    target_nodes = [node_map[nid] for nid in target_ids if nid in node_map]
+    target_bps = _get_bps(target_ids)
+    avg_mastery = sum(working_mastery.get(nid, 0.5) for nid in target_ids) / max(len(target_ids), 1)
+    turn_number = len(state["turns"]) + 1
+
+    # 1. 학생 답변
+    answer = persona_agent.generate_answer(
+        question=question,
+        persona_prompt=state["persona"],
+        subject_name=state["subject_name"],
+        conversation_history=state["turns"],
+    )
+
+    # 2. 채점
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        eval_resp = await client.post(
+            f"{STUDENT_PLATFORM_URL}/interview/service/evaluate",
+            json={
+                "question": question,
+                "answer": answer,
+                "target_nodes": target_nodes,
+                "target_blueprints": target_bps,
+                "subject_name": state["subject_name"],
+            },
+            headers={"X-Service-Token": KG_SERVICE_TOKEN},
+        )
+        eval_resp.raise_for_status()
+        evaluation = eval_resp.json()
+        score = float(evaluation.get("score", 0.5))
+
+        # 3. mastery 갱신
+        for nid in target_ids:
+            cur = working_mastery.get(nid, 0.5)
+            working_mastery[nid] = round(0.3 * score + 0.7 * cur, 4)
+
+        # 4. 다음 타겟 선택
+        covered = [nid for t in state["turns"] for nid in t["target_nodes"]] + list(target_ids)
+        next_resp = await client.post(
+            f"{STUDENT_PLATFORM_URL}/interview/service/next-target",
+            json={
+                "working_mastery": working_mastery,
+                "nodes": nodes,
+                "covered_node_ids": covered,
+                "last_score": score,
+                "consecutive_followups": state["consecutive_followups"],
+                "current_target_nodes": target_ids,
+            },
+            headers={"X-Service-Token": KG_SERVICE_TOKEN},
+        )
+        next_resp.raise_for_status()
+        next_data = next_resp.json()
+        next_action = next_data["action"]
+        next_target_ids = next_data["target_ids"]
+        state["consecutive_followups"] = (state["consecutive_followups"] + 1) if next_action == "follow_up" else 0
+
+        turn = {
+            "turn_number": turn_number,
+            "question": question,
+            "answer": answer,
+            "score": score,
+            "feedback": evaluation.get("feedback", ""),
+            "action": next_action,
+            "target_nodes": target_ids,
+        }
+        state["turns"].append(turn)
+
+        done = (turn_number >= MAX_VIRT_TURNS) or (not next_target_ids)
+        state["done"] = done
+
+        next_question = None
+        if not done:
+            next_nodes = [node_map[nid] for nid in next_target_ids if nid in node_map]
+            next_bps = _get_bps(next_target_ids)
+            next_avg = sum(working_mastery.get(nid, 0.5) for nid in next_target_ids) / max(len(next_target_ids), 1)
+            nq_resp = await client.post(
+                f"{STUDENT_PLATFORM_URL}/interview/service/question",
+                json={
+                    "subject_name": state["subject_name"],
+                    "target_nodes": next_nodes,
+                    "target_blueprints": next_bps,
+                    "conversation_history": state["turns"],
+                    "action": next_action,
+                    "mastery_level": next_avg,
+                },
+                headers={"X-Service-Token": KG_SERVICE_TOKEN},
+            )
+            nq_resp.raise_for_status()
+            next_question = nq_resp.json()["question"]
+            state["current_question"] = next_question
+            state["current_target_ids"] = next_target_ids
+
+    return InterviewStepOut(
+        session_id=session_id,
+        turn_number=turn_number,
+        question=question,
+        answer=answer,
+        score=score,
+        feedback=evaluation.get("feedback", ""),
+        next_question=next_question,
+        done=done,
+    )
+
+
+# ── POST /simulate/interview/{session_id}/finish ─────────────────────────────
+
+@router.post("/interview/{session_id}/finish")
+async def interview_finish(session_id: str, db: Session = Depends(get_db)):
+    state = _virt_sessions.get(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+
+    turns = state["turns"]
+    if not turns:
+        raise HTTPException(status_code=400, detail="No turns to finish")
+
+    assessed = list({nid for t in turns for nid in t["target_nodes"]})
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        diag_resp = await client.post(
+            f"{STUDENT_PLATFORM_URL}/interview/service/diagnose",
+            json={
+                "subject_name": state["subject_name"],
+                "nodes": state["nodes"],
+                "turns": turns,
+                "final_mastery": state["working_mastery"],
+                "assessed_node_ids": assessed,
+            },
+            headers={"X-Service-Token": KG_SERVICE_TOKEN},
+        )
+        diag_resp.raise_for_status()
+        diagnosis = diag_resp.json()
+
+    # DB 저장
+    run = SimulationRun(
+        subject_id=state["subject_id"],
+        mode="interview",
+        question_source="none",
+        questions=[],
+    )
+    db.add(run)
+    db.flush()
+
+    answers = [
+        {"question_text": t["question"], "answer_text": t["answer"],
+         "score": t["score"], "feedback": t["feedback"], "is_correct": None}
+        for t in turns
+    ]
+    result = SimulationResult(
+        run_id=run.id,
+        virtual_student_id=state["virtual_student_id"],
+        answers=answers,
+        diagnosis=diagnosis,
+    )
+    db.add(result)
+    db.commit()
+
+    del _virt_sessions[session_id]
+
+    return {
+        "run_id": run.id,
+        "diagnosis": diagnosis,
+        "turns": turns,
+    }
