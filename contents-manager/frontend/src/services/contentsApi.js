@@ -153,3 +153,37 @@ export const unpublishWorkbenchQuestion = (id) =>
 
 export const archiveWorkbenchQuestion = (id) =>
   fetch(`${BASE}/question-workbench/questions/${id}/archive`, { method: 'POST', headers: headers() }).then(handle)
+
+// ── EPIC-009: Knowledge Ingestion ─────────────────────────────────────────────
+export const runIngestion = (sourceType, source, dryRun = false, subjectId = null) =>
+  fetch(`${BASE}/ingestion/run`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ source_type: sourceType, source, dry_run: dryRun, subject_id: subjectId || undefined }),
+  }).then(handle)
+
+export const uploadIngestion = (file, dryRun = false, subjectId = null) => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('dry_run', dryRun)
+  if (subjectId) form.append('subject_id', subjectId)
+  return fetch(`${BASE}/ingestion/upload`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('cm_token') || ''}` },
+    body: form,
+  }).then(handle)
+}
+
+export const getIngestionLogs = () =>
+  fetch(`${BASE}/ingestion/logs`, { headers: headers() }).then(handle)
+
+export const getIngestionLogDetail = (timestamp) =>
+  fetch(`${BASE}/ingestion/logs/${timestamp}`, { headers: headers() }).then(handle)
+
+export const getIngestionSnapshots = () =>
+  fetch(`${BASE}/ingestion/snapshots`, { headers: headers() }).then(handle)
+
+export const getIngestionSnapshotDiff = (timestamp) =>
+  fetch(`${BASE}/ingestion/snapshots/${timestamp}/diff`, { headers: headers() }).then(handle)
+
+export const rollbackIngestionSnapshot = (timestamp) =>
+  fetch(`${BASE}/ingestion/snapshots/${timestamp}/rollback`, { method: 'POST', headers: headers() }).then(handle)
