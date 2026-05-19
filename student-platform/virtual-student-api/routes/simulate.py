@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import SimulationResult, SimulationRun, VirtualStudent, VirtualStudentFeatureValue
 
-router = APIRouter(prefix="/simulate", tags=["simulate"])
+router = APIRouter(prefix="/api/simulate", tags=["simulate"])
 
 STUDENT_PLATFORM_URL = os.getenv("STUDENT_PLATFORM_URL", "http://localhost:8020")
 KG_SERVICE_TOKEN = os.getenv("KG_SERVICE_TOKEN", "kg-service-secret")

@@ -76,8 +76,10 @@ export const seedStudents = (data) =>
 
 // ── Simulation ────────────────────────────────────────────────────────────────
 
+const SIM = '/api/simulate'
+
 export const createSimulationRun = (data) =>
-  request(`${BASE}/simulate/runs`, {
+  request(`${SIM}/runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -85,13 +87,13 @@ export const createSimulationRun = (data) =>
 
 export const fetchSimulationRuns = (subjectId) => {
   const q = subjectId ? `?subject_id=${subjectId}` : ''
-  return request(`${BASE}/simulate/runs${q}`)
+  return request(`${SIM}/runs${q}`)
 }
 
 export const fetchSimulationRun = (runId) =>
-  request(`${BASE}/simulate/runs/${runId}`)
+  request(`${SIM}/runs/${runId}`)
 
 export const fetchKgQuestions = (subjectId) => {
   const q = subjectId ? `?subject_id=${subjectId}` : ''
-  return request(`${BASE}/simulate/kg-questions${q}`).then(d => d?.questions ?? [])
+  return request(`${SIM}/kg-questions${q}`).then(d => d?.questions ?? [])
 }
