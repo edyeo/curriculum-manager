@@ -17,6 +17,7 @@ from models import SimulationResult, SimulationRun, VirtualStudent, VirtualStude
 router = APIRouter(prefix="/api/simulate", tags=["simulate"])
 
 STUDENT_PLATFORM_URL = os.getenv("STUDENT_PLATFORM_URL", "http://localhost:8020")
+GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:9000")
 KG_SERVICE_TOKEN = os.getenv("KG_SERVICE_TOKEN", "kg-service-secret")
 KG_API_URL = os.getenv("KG_API_URL", "http://localhost:8010")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
@@ -32,10 +33,24 @@ def _get_openai():
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
+# KG question_type → grader type
+_TYPE_MAP = {
+    "MCQ": "MULTIPLE_CHOICE",
+    "OX": "MULTIPLE_CHOICE",
+    "short_answer": "SHORT_ANSWER",
+    "descriptive": "DESCRIPTIVE",
+    "MULTIPLE_CHOICE": "MULTIPLE_CHOICE",
+    "SHORT_ANSWER": "SHORT_ANSWER",
+    "DESCRIPTIVE": "DESCRIPTIVE",
+}
+
+
 class QuestionInput(BaseModel):
     question_text: str
+    question_type: str = "SHORT_ANSWER"   # MULTIPLE_CHOICE | SHORT_ANSWER | DESCRIPTIVE
     question_id: Optional[str] = None
     correct_answer: Optional[str] = None
+    explanation: Optional[str] = None
 
 
 class SimulationRunRequest(BaseModel):
@@ -48,6 +63,9 @@ class SimulationRunRequest(BaseModel):
 class AnswerOut(BaseModel):
     question_text: str
     answer_text: str
+    score: Optional[float] = None
+    feedback: Optional[str] = None
+    is_correct: Optional[bool] = None
 
 
 class StudentResultOut(BaseModel):
@@ -96,22 +114,49 @@ def _get_prior_knowledge_level(feature_values: list) -> float:
 
 # ── Simple Answer (Mode 1) ────────────────────────────────────────────────────
 
-def _simple_answer(question_text: str, persona_prompt: str, subject_id: str) -> str:
-    client = _get_openai()
-    system = (
-        f"You are a student with the following characteristics:\n{persona_prompt}\n\n"
-        "Answer the question naturally, consistent with your characteristics. "
-        "Respond only with your answer text."
+async def _grade(
+    question: QuestionInput,
+    answer_text: str,
+) -> dict:
+    """Grader Agent 호출 — correct_answer 없으면 None 반환."""
+    if not question.correct_answer:
+        return {}
+    grader_type = _TYPE_MAP.get(question.question_type, "SHORT_ANSWER")
+    payload = {
+        "question_type": grader_type,
+        "question_text": question.question_text,
+        "correct_answer": question.correct_answer,
+        "user_answer": answer_text,
+        "explanation": question.explanation or "",
+        "matrix_cells": [],
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            resp = await client.post(f"{GATEWAY_URL}/grade", json=payload)
+            resp.raise_for_status()
+            return resp.json()   # {is_correct, score, feedback, cell_scores}
+        except Exception:
+            return {}
+
+
+async def _simple_answer_and_grade(
+    question: QuestionInput,
+    persona_prompt: str,
+    subject_id: str,
+) -> AnswerOut:
+    answer_text = persona_agent.generate_answer(
+        question=question.question_text,
+        persona_prompt=persona_prompt,
+        subject_name=subject_id,
     )
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        max_tokens=400,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": f"Subject: {subject_id}\n\nQuestion: {question_text}"},
-        ],
+    grade_result = await _grade(question, answer_text)
+    return AnswerOut(
+        question_text=question.question_text,
+        answer_text=answer_text,
+        score=grade_result.get("score"),
+        feedback=grade_result.get("feedback"),
+        is_correct=grade_result.get("is_correct"),
     )
-    return response.choices[0].message.content.strip()
 
 
 # ── Interview Mode (Mode 2) ───────────────────────────────────────────────────
@@ -303,10 +348,11 @@ async def create_simulation_run(data: SimulationRunRequest, db: Session = Depend
         prior_knowledge = _get_prior_knowledge_level(fvs)
 
         if data.mode == "simple":
-            answers = []
-            for q in data.questions:
-                answer_text = _simple_answer(q.question_text, persona, data.subject_id)
-                answers.append({"question_text": q.question_text, "answer_text": answer_text})
+            answer_outs = [
+                await _simple_answer_and_grade(q, persona, data.subject_id)
+                for q in data.questions
+            ]
+            answers = [a.model_dump() for a in answer_outs]
             diagnosis = None
         else:
             # interview mode: prior_knowledge_level → 전 노드 uniform initial mastery
@@ -316,7 +362,13 @@ async def create_simulation_run(data: SimulationRunRequest, db: Session = Depend
                 uniform_mastery=prior_knowledge,
             )
             answers = [
-                {"question_text": t["question"], "answer_text": t["answer"]}
+                {
+                    "question_text": t["question"],
+                    "answer_text": t["answer"],
+                    "score": t.get("score"),
+                    "feedback": t.get("feedback"),
+                    "is_correct": None,
+                }
                 for t in interview_data.get("turns", [])
             ]
             diagnosis = interview_data.get("diagnosis")
@@ -332,7 +384,13 @@ async def create_simulation_run(data: SimulationRunRequest, db: Session = Depend
         results_out.append(StudentResultOut(
             student_id=student.id,
             student_name=student.name,
-            answers=[AnswerOut(**a) for a in answers],
+            answers=[AnswerOut(
+                question_text=a["question_text"],
+                answer_text=a["answer_text"],
+                score=a.get("score"),
+                feedback=a.get("feedback"),
+                is_correct=a.get("is_correct"),
+            ) for a in answers],
             diagnosis=diagnosis,
         ))
 

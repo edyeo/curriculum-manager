@@ -285,6 +285,7 @@ services:
       KG_API_URL: http://contents-manager-backend:8010
       KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
       STUDENT_PLATFORM_URL: http://student-platform-backend:8020
+      GATEWAY_URL: http://api-gateway:9000
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GATEWAY_URL: http://api-gateway:9000
       STUDENT_JWT_SECRET: ${STUDENT_JWT_SECRET:-student-secret-change-in-prod}
@@ -332,6 +333,7 @@ services:
       KG_API_URL: http://contents-manager-backend:8010
       KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
       STUDENT_PLATFORM_URL: http://student-platform-backend:8020
+      GATEWAY_URL: http://api-gateway:9000
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "8030:8030"

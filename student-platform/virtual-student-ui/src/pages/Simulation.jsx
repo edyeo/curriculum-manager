@@ -229,11 +229,19 @@ function StudentSelectStep({ subjectId, selected, onSelect, mode, onModeChange, 
 
 // ── Step 2: 질문 설정 ──────────────────────────────────────────────────────────
 
+const Q_TYPES = [
+  { value: 'SHORT_ANSWER', label: '단답형' },
+  { value: 'DESCRIPTIVE', label: '서술형' },
+  { value: 'MULTIPLE_CHOICE', label: '객관식' },
+]
+
 function QuestionStep({ subjectId, questions, onQuestionsChange, onBack, onRun, running }) {
-  const [sourceTab, setSourceTab] = useState('manual')  // manual | kg
+  const [sourceTab, setSourceTab] = useState('manual')
   const [kgQuestions, setKgQuestions] = useState([])
   const [kgLoading, setKgLoading] = useState(false)
   const [manualText, setManualText] = useState('')
+  const [manualType, setManualType] = useState('SHORT_ANSWER')
+  const [manualAnswer, setManualAnswer] = useState('')
 
   useEffect(() => {
     if (sourceTab !== 'kg') return
@@ -247,18 +255,32 @@ function QuestionStep({ subjectId, questions, onQuestionsChange, onBack, onRun, 
   function addManual() {
     const text = manualText.trim()
     if (!text) return
-    onQuestionsChange(prev => [...prev, { question_text: text }])
+    onQuestionsChange(prev => [...prev, {
+      question_text: text,
+      question_type: manualType,
+      correct_answer: manualAnswer.trim() || null,
+    }])
     setManualText('')
+    setManualAnswer('')
   }
 
   function addKg(q) {
     if (questions.some(x => x.question_id === q.id)) return
-    onQuestionsChange(prev => [...prev, { question_text: q.question_text, question_id: q.id }])
+    const typeMap = { MCQ: 'MULTIPLE_CHOICE', OX: 'MULTIPLE_CHOICE', short_answer: 'SHORT_ANSWER', descriptive: 'DESCRIPTIVE' }
+    onQuestionsChange(prev => [...prev, {
+      question_text: q.question_text,
+      question_type: typeMap[q.question_type] || 'SHORT_ANSWER',
+      question_id: q.id,
+      correct_answer: q.correct_answer || null,
+      explanation: q.explanation || null,
+    }])
   }
 
   function removeQuestion(idx) {
     onQuestionsChange(prev => prev.filter((_, i) => i !== idx))
   }
+
+  const typeLabel = (t) => Q_TYPES.find(x => x.value === t)?.label || t
 
   return (
     <div>
@@ -272,24 +294,46 @@ function QuestionStep({ subjectId, questions, onQuestionsChange, onBack, onRun, 
         </div>
 
         {sourceTab === 'manual' && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <input
-              style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: '0.875rem' }}
-              placeholder="질문 텍스트를 입력하세요"
-              value={manualText}
-              onChange={e => setManualText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addManual()}
-            />
-            <button className="btn-primary" onClick={addManual}>추가</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: '0.875rem' }}
+                placeholder="질문 텍스트"
+                value={manualText}
+                onChange={e => setManualText(e.target.value)}
+              />
+              <select
+                value={manualType}
+                onChange={e => setManualType(e.target.value)}
+                style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: '0.875rem' }}
+              >
+                {Q_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: '0.875rem' }}
+                placeholder="정답 (선택사항 — 입력 시 채점됨)"
+                value={manualAnswer}
+                onChange={e => setManualAnswer(e.target.value)}
+              />
+              <button className="btn-primary" onClick={addManual} disabled={!manualText.trim()}>추가</button>
+            </div>
           </div>
         )}
 
         {sourceTab === 'kg' && (
-          <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
+          <div style={{ maxHeight: 280, overflowY: 'auto', marginBottom: 16 }}>
             {kgLoading && <p style={{ color: '#999', padding: 8 }}>불러오는 중...</p>}
             {kgQuestions.map(q => (
               <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f3f4f6', gap: 8 }}>
-                <span style={{ fontSize: '0.875rem', flex: 1 }}>{q.question_text}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.875rem' }}>{q.question_text}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>
+                    {q.question_type}
+                    {q.correct_answer && <span style={{ marginLeft: 6, color: '#16a34a' }}>채점 가능</span>}
+                  </div>
+                </div>
                 <button
                   className="btn-sm"
                   disabled={questions.some(x => x.question_id === q.id)}
@@ -309,9 +353,13 @@ function QuestionStep({ subjectId, questions, onQuestionsChange, onBack, onRun, 
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>선택된 질문</div>
             {questions.map((q, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f3f4f6', gap: 8 }}>
-                <span style={{ fontSize: '0.875rem', flex: 1 }}>{q.question_text}</span>
-                {q.question_id && <span className="badge-sm">KG</span>}
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f3f4f6', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.875rem' }}>{q.question_text}</span>
+                  <span style={{ marginLeft: 6 }}><span className="badge-sm">{typeLabel(q.question_type)}</span></span>
+                  {q.question_id && <span className="badge-sm" style={{ marginLeft: 4 }}>KG</span>}
+                  {q.correct_answer && <span style={{ marginLeft: 6, fontSize: '0.75rem', color: '#16a34a' }}>채점 가능</span>}
+                </div>
                 <button className="btn-sm btn-danger" onClick={() => removeQuestion(i)}>✕</button>
               </div>
             ))}
@@ -377,12 +425,34 @@ function ResultView({ result }) {
                     <td style={{ fontWeight: 600, fontSize: '0.875rem' }}>{s.student_name}</td>
                     {s.answers.map((a, qi) => {
                       const isOpen = expandedCell?.si === si && expandedCell?.qi === qi
+                      const hasScore = a.score != null
+                      const scoreColor = hasScore
+                        ? a.score >= 0.7 ? '#16a34a' : a.score >= 0.4 ? '#ca8a04' : '#dc2626'
+                        : '#9ca3af'
                       return (
-                        <td key={qi} style={{ verticalAlign: 'top', cursor: 'pointer' }} onClick={() => setExpandedCell(isOpen ? null : { si, qi })}>
-                          <div style={{ fontSize: '0.82rem', color: '#374151', maxHeight: isOpen ? 'none' : 60, overflow: 'hidden' }}>
+                        <td key={qi} style={{ verticalAlign: 'top', cursor: 'pointer', padding: '8px 12px' }}
+                            onClick={() => setExpandedCell(isOpen ? null : { si, qi })}>
+                          {hasScore && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: scoreColor }}>
+                                {(a.score * 100).toFixed(0)}점
+                              </span>
+                              {a.is_correct != null && (
+                                <span style={{ fontSize: '0.72rem', background: a.is_correct ? '#dcfce7' : '#fee2e2', color: a.is_correct ? '#16a34a' : '#dc2626', padding: '1px 5px', borderRadius: 4 }}>
+                                  {a.is_correct ? '정답' : '오답'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <div style={{ fontSize: '0.82rem', color: '#374151', maxHeight: isOpen ? 'none' : 56, overflow: 'hidden' }}>
                             {a.answer_text}
                           </div>
-                          {!isOpen && a.answer_text.length > 120 && (
+                          {isOpen && a.feedback && (
+                            <div style={{ marginTop: 6, padding: '6px 8px', background: '#f9fafb', borderRadius: 6, fontSize: '0.78rem', color: '#6b7280', borderLeft: `3px solid ${scoreColor}` }}>
+                              {a.feedback}
+                            </div>
+                          )}
+                          {!isOpen && a.answer_text.length > 100 && (
                             <span style={{ fontSize: '0.75rem', color: '#6366f1' }}>더 보기</span>
                           )}
                         </td>
@@ -439,12 +509,20 @@ function DiagnosisCard({ student, expanded, onToggle }) {
             <>
               <div style={{ marginTop: 10, borderTop: '1px solid #e5e7eb', paddingTop: 10 }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>대화 이력</div>
-                {student.answers.map((a, i) => (
-                  <div key={i} style={{ marginBottom: 10, fontSize: '0.8rem' }}>
-                    <div style={{ color: '#4f46e5' }}>Q{i + 1}: {a.question_text}</div>
-                    <div style={{ color: '#374151', marginTop: 2 }}>A: {a.answer_text}</div>
-                  </div>
-                ))}
+                {student.answers.map((a, i) => {
+                  const sc = a.score
+                  const scColor = sc != null ? (sc >= 0.7 ? '#16a34a' : sc >= 0.4 ? '#ca8a04' : '#dc2626') : null
+                  return (
+                    <div key={i} style={{ marginBottom: 10, fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#4f46e5' }}>Q{i + 1}: {a.question_text}</span>
+                        {sc != null && <span style={{ fontWeight: 700, color: scColor, whiteSpace: 'nowrap', marginLeft: 8 }}>{(sc * 100).toFixed(0)}점</span>}
+                      </div>
+                      <div style={{ color: '#374151', marginTop: 2 }}>A: {a.answer_text}</div>
+                      {a.feedback && <div style={{ marginTop: 3, color: '#9ca3af', fontStyle: 'italic' }}>{a.feedback}</div>}
+                    </div>
+                  )
+                })}
               </div>
               {(d.recommendations || []).length > 0 && (
                 <div style={{ marginTop: 8 }}>
