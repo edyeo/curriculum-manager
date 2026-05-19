@@ -57,6 +57,13 @@ export const fetchStats = (subjectId) => {
   return request(`${BASE}/stats${q}`)
 }
 
+export const generateStudents = (data) =>
+  request(`${BASE}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
 export const fetchSubjects = () =>
   request(`${BASE}/subjects`).then(d => d?.subjects ?? d ?? [])
 

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import {
   fetchStudents, fetchStudent, createStudent, updateStudent,
-  deleteStudent, fetchFeatureDefinitions,
+  deleteStudent, fetchFeatureDefinitions, generateStudents, fetchSubjects,
 } from '../api/client'
 
 export default function Students() {
   const [students, setStudents] = useState({ total: 0, items: [] })
   const [features, setFeatures] = useState([])
+  const [subjects, setSubjects] = useState([])
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
+  const [showGenerate, setShowGenerate] = useState(false)
   const [editingStudent, setEditingStudent] = useState(null)
   const [error, setError] = useState(null)
 
@@ -16,12 +18,14 @@ export default function Students() {
 
   async function load() {
     try {
-      const [data, fds] = await Promise.all([
+      const [data, fds, subs] = await Promise.all([
         fetchStudents({ page, page_size: 20 }),
         fetchFeatureDefinitions(),
+        fetchSubjects(),
       ])
       setStudents(data)
       setFeatures(fds)
+      setSubjects(subs)
     } catch (e) {
       setError(e.message)
     }
@@ -64,9 +68,14 @@ export default function Students() {
     <div>
       <div className="section-header">
         <h2>가상 학생 관리</h2>
-        <button className="btn-primary" onClick={() => { setEditingStudent(null); setShowForm(true) }}>
-          + 새 학생
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-secondary" onClick={() => setShowGenerate(true)}>
+            학생 생성
+          </button>
+          <button className="btn-primary" onClick={() => { setEditingStudent(null); setShowForm(true) }}>
+            + 새 학생
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
@@ -118,6 +127,18 @@ export default function Students() {
           features={features}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditingStudent(null) }}
+        />
+      )}
+
+      {showGenerate && (
+        <GenerateModal
+          subjects={subjects}
+          onGenerate={async (params) => {
+            await generateStudents(params)
+            setShowGenerate(false)
+            load()
+          }}
+          onClose={() => setShowGenerate(false)}
         />
       )}
     </div>
@@ -235,4 +256,64 @@ function FeatureValueInput({ fd, value, onChange }) {
   }
 
   return <input value={value} onChange={e => onChange(e.target.value)} />
+}
+
+function GenerateModal({ subjects, onGenerate, onClose }) {
+  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '')
+  const [count, setCount] = useState(10)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setGenerating(true)
+    setError(null)
+    try {
+      await onGenerate({ subject_id: subjectId, count: Number(count) })
+    } catch (e) {
+      setError(e.message)
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-header">
+          <h3>학생 자동 생성</h3>
+          <button onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="modal-body">
+          <label>
+            Subject *
+            <select required value={subjectId} onChange={e => setSubjectId(e.target.value)}>
+              <option value="">선택하세요</option>
+              {subjects.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            생성 인원 *
+            <input
+              type="number"
+              required
+              min={1}
+              max={200}
+              value={count}
+              onChange={e => setCount(e.target.value)}
+            />
+            <span className="input-hint">1~200명</span>
+          </label>
+          {error && <div className="form-error">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" onClick={onClose}>취소</button>
+            <button type="submit" className="btn-primary" disabled={generating || !subjectId}>
+              {generating ? `생성 중...` : `${count}명 생성`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }
