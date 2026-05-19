@@ -61,7 +61,14 @@ def _get_target_blueprints(state: dict, target_node_ids: list[str]) -> list[dict
     return result
 
 
-def _load_initial_mastery(student_id: int, subject_id: str, db: Session) -> dict[str, float]:
+def _load_initial_mastery(
+    student_id: int,
+    subject_id: str,
+    db: Session,
+    initial_mastery_override: dict[str, float] | None = None,
+) -> dict[str, float]:
+    if initial_mastery_override is not None:
+        return initial_mastery_override
     records = db.query(NodeMastery).filter(
         NodeMastery.student_id == student_id,
         NodeMastery.subject_id == subject_id,
@@ -562,3 +569,102 @@ def get_diagnosis(
         "turn_count": turns,
         "created_at": diagnosis.created_at.isoformat(),
     }
+
+
+# ── /interview/service/* — stateless 서비스 엔드포인트 (X-Service-Token 인증) ──
+
+import os as _os2
+from fastapi import Request as _Request
+
+_SVC_TOKEN = _os2.getenv("KG_SERVICE_TOKEN", "kg-service-secret")
+
+
+def _svc_auth(request: _Request):
+    if request.headers.get("X-Service-Token", "") != _SVC_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid service token")
+
+
+class SvcQuestionRequest(BaseModel):
+    subject_name: str
+    target_nodes: list        # [{id, name, description}]
+    target_blueprints: list   # blueprint list
+    conversation_history: list = []
+    action: str = "pivot"
+    mastery_level: float = 0.5
+
+
+@router.post("/service/question")
+async def svc_generate_question(req: SvcQuestionRequest, request: _Request):
+    _svc_auth(request)
+    question = agent.generate_question(
+        subject_name=req.subject_name,
+        target_nodes=req.target_nodes,
+        target_blueprints=req.target_blueprints,
+        conversation_history=req.conversation_history,
+        action=req.action,
+        mastery_level=req.mastery_level,
+    )
+    return {"question": question}
+
+
+class SvcEvaluateRequest(BaseModel):
+    question: str
+    answer: str
+    target_nodes: list
+    target_blueprints: list
+    subject_name: str
+
+
+@router.post("/service/evaluate")
+async def svc_evaluate_answer(req: SvcEvaluateRequest, request: _Request):
+    _svc_auth(request)
+    return agent.evaluate_answer(
+        question=req.question,
+        answer=req.answer,
+        target_nodes=req.target_nodes,
+        target_blueprints=req.target_blueprints,
+        subject_name=req.subject_name,
+    )
+
+
+class SvcNextTargetRequest(BaseModel):
+    working_mastery: dict
+    nodes: list
+    covered_node_ids: list
+    last_score: Optional[float] = None
+    consecutive_followups: int = 0
+    current_target_nodes: Optional[list] = None
+
+
+@router.post("/service/next-target")
+def svc_next_target(req: SvcNextTargetRequest, request: _Request):
+    _svc_auth(request)
+    target_ids, action = agent.select_target_nodes(
+        working_mastery=req.working_mastery,
+        nodes=req.nodes,
+        covered_node_ids=set(req.covered_node_ids),
+        last_score=req.last_score,
+        consecutive_followups=req.consecutive_followups,
+        current_target_nodes=req.current_target_nodes,
+    )
+    return {"target_ids": target_ids, "action": action}
+
+
+class SvcDiagnoseRequest(BaseModel):
+    subject_name: str
+    nodes: list
+    turns: list
+    final_mastery: dict
+    assessed_node_ids: list
+
+
+@router.post("/service/diagnose")
+async def svc_diagnose(req: SvcDiagnoseRequest, request: _Request):
+    _svc_auth(request)
+    return agent.generate_diagnosis(
+        subject_name=req.subject_name,
+        nodes=req.nodes,
+        turns=req.turns,
+        final_mastery=req.final_mastery,
+        assessed_node_ids=set(req.assessed_node_ids),
+    )

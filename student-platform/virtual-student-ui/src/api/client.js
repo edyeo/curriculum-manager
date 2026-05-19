@@ -73,3 +73,40 @@ export const seedStudents = (data) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+
+// ── Simulation ────────────────────────────────────────────────────────────────
+
+const SIM = '/api/simulate'
+
+export const createSimulationRun = (data) =>
+  request(`${SIM}/runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
+export const fetchSimulationRuns = (subjectId) => {
+  const q = subjectId ? `?subject_id=${subjectId}` : ''
+  return request(`${SIM}/runs${q}`)
+}
+
+export const fetchSimulationRun = (runId) =>
+  request(`${SIM}/runs/${runId}`)
+
+export const fetchKgQuestions = (subjectId) => {
+  const q = subjectId ? `?subject_id=${subjectId}` : ''
+  return request(`${SIM}/kg-questions${q}`).then(d => d?.questions ?? [])
+}
+
+export const startInterviewSession = (data) =>
+  request(`${SIM}/interview/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
+export const stepInterviewSession = (sessionId) =>
+  request(`${SIM}/interview/${sessionId}/step`, { method: 'POST' })
+
+export const finishInterviewSession = (sessionId) =>
+  request(`${SIM}/interview/${sessionId}/finish`, { method: 'POST' })
