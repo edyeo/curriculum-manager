@@ -57,3 +57,30 @@ class VirtualStudentFeatureValue(Base):
 
     student = relationship("VirtualStudent", back_populates="feature_values")
     definition = relationship("VirtualStudentFeatureDefinition", back_populates="values")
+
+
+class SimulationRun(Base):
+    __tablename__ = "simulation_runs"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    subject_id = Column(String, nullable=False)
+    mode = Column(String, nullable=False)          # simple | interview
+    question_source = Column(String, nullable=False)  # kg | manual | none
+    questions = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    results = relationship("SimulationResult", back_populates="run", cascade="all, delete-orphan")
+
+
+class SimulationResult(Base):
+    __tablename__ = "simulation_results"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    run_id = Column(String, ForeignKey("simulation_runs.id"), nullable=False)
+    virtual_student_id = Column(String, ForeignKey("virtual_students.id"), nullable=False)
+    answers = Column(JSON, nullable=False, default=list)
+    diagnosis = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    run = relationship("SimulationRun", back_populates="results")
+    student = relationship("VirtualStudent")

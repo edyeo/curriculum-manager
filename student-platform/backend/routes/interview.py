@@ -61,7 +61,14 @@ def _get_target_blueprints(state: dict, target_node_ids: list[str]) -> list[dict
     return result
 
 
-def _load_initial_mastery(student_id: int, subject_id: str, db: Session) -> dict[str, float]:
+def _load_initial_mastery(
+    student_id: int,
+    subject_id: str,
+    db: Session,
+    initial_mastery_override: dict[str, float] | None = None,
+) -> dict[str, float]:
+    if initial_mastery_override is not None:
+        return initial_mastery_override
     records = db.query(NodeMastery).filter(
         NodeMastery.student_id == student_id,
         NodeMastery.subject_id == subject_id,
@@ -562,3 +569,144 @@ def get_diagnosis(
         "turn_count": turns,
         "created_at": diagnosis.created_at.isoformat(),
     }
+
+
+# ── POST /interview/virtual-run ───────────────────────────────────────────────
+
+import os as _os
+from fastapi import Request as FastAPIRequest
+
+VIRTUAL_SERVICE_TOKEN = _os.getenv("KG_SERVICE_TOKEN", "kg-service-secret")
+
+
+class VirtualRunRequest(BaseModel):
+    subject_id: str
+    initial_mastery: dict = {}    # node_id -> float (빈 경우 uniform_mastery 또는 0.5 사용)
+    uniform_mastery: Optional[float] = None  # prior_knowledge_level → 전 노드 균등 적용
+    persona_prompt: str
+    max_turns: int = 5
+
+
+@router.post("/virtual-run")
+async def virtual_run(
+    req: VirtualRunRequest,
+    request: FastAPIRequest,
+    db: Session = Depends(get_db),
+):
+    """가상 학생 1명에 대한 인터뷰 세션을 자동 완주한다 (서비스 토큰 인증)."""
+    token = request.headers.get("X-Service-Token", "")
+    if token != VIRTUAL_SERVICE_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid service token")
+
+    nodes = await kg_client.get_nodes(req.subject_id)
+    if not nodes:
+        raise HTTPException(status_code=404, detail="Subject not found or has no nodes")
+
+    subjects = await kg_client.get_subjects()
+    subject_name = next(
+        (s.get("name", req.subject_id) for s in subjects.get("subjects", []) if s["id"] == req.subject_id),
+        req.subject_id,
+    )
+
+    blueprint_results = await asyncio.gather(
+        *[kg_client.get_node_blueprints(n["id"]) for n in nodes],
+        return_exceptions=True,
+    )
+    node_blueprints = {
+        nodes[i]["id"]: (blueprint_results[i] if not isinstance(blueprint_results[i], Exception) else [])
+        for i in range(len(nodes))
+    }
+
+    default_mastery = req.uniform_mastery if req.uniform_mastery is not None else 0.5
+    working_mastery = dict(req.initial_mastery)
+    for n in nodes:
+        working_mastery.setdefault(n["id"], default_mastery)
+
+    sorted_nodes = sorted(nodes, key=lambda n: working_mastery.get(n["id"], 0.5))
+    current_target_ids = [sorted_nodes[0]["id"]]
+    consecutive_followups = 0
+    turns = []
+
+    node_map = {n["id"]: n for n in nodes}
+
+    def _get_bps(target_ids):
+        seen, result = set(), []
+        for nid in target_ids:
+            for bp in node_blueprints.get(nid, []):
+                if bp["blueprint_id"] not in seen:
+                    seen.add(bp["blueprint_id"])
+                    result.append(bp)
+        return result
+
+    for turn_number in range(1, req.max_turns + 1):
+        target_nodes = [node_map[nid] for nid in current_target_ids if nid in node_map]
+        target_bps = _get_bps(current_target_ids)
+        avg_mastery = sum(working_mastery.get(nid, 0.5) for nid in current_target_ids) / max(len(current_target_ids), 1)
+
+        action = "pivot" if turn_number == 1 else turns[-1].get("action", "pivot")
+        question = agent.generate_question(
+            subject_name=subject_name,
+            target_nodes=target_nodes,
+            target_blueprints=target_bps,
+            conversation_history=turns,
+            action=action,
+            mastery_level=avg_mastery,
+        )
+
+        answer = agent.generate_answer_as_persona(
+            question=question,
+            persona_prompt=req.persona_prompt,
+            subject_name=subject_name,
+            conversation_history=turns,
+        )
+
+        evaluation = agent.evaluate_answer(
+            question=question,
+            answer=answer,
+            target_nodes=target_nodes,
+            target_blueprints=target_bps,
+            subject_name=subject_name,
+        )
+        score = float(evaluation.get("score", 0.5))
+
+        for nid in current_target_ids:
+            current = working_mastery.get(nid, 0.5)
+            working_mastery[nid] = agent.apply_ema(current, score)
+
+        covered = {nid for t in turns for nid in t["target_nodes"]}
+        covered.update(current_target_ids)
+
+        next_target_ids, next_action = agent.select_target_nodes(
+            working_mastery=working_mastery,
+            nodes=nodes,
+            covered_node_ids=covered,
+            last_score=score,
+            consecutive_followups=consecutive_followups,
+            current_target_nodes=current_target_ids,
+        )
+        consecutive_followups = (consecutive_followups + 1) if next_action == "follow_up" else 0
+
+        turns.append({
+            "turn_number": turn_number,
+            "question": question,
+            "answer": answer,
+            "score": score,
+            "feedback": evaluation.get("feedback", ""),
+            "action": next_action,
+            "target_nodes": current_target_ids,
+        })
+
+        if not next_target_ids:
+            break
+        current_target_ids = next_target_ids
+
+    assessed_node_ids = {nid for t in turns for nid in t["target_nodes"]}
+    diagnosis = agent.generate_diagnosis(
+        subject_name=subject_name,
+        nodes=nodes,
+        turns=turns,
+        final_mastery=working_mastery,
+        assessed_node_ids=assessed_node_ids,
+    )
+
+    return {"turns": turns, "diagnosis": diagnosis}

@@ -284,6 +284,8 @@ services:
     environment:
       KG_API_URL: http://contents-manager-backend:8010
       KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
+      STUDENT_PLATFORM_URL: http://student-platform-backend:8020
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GATEWAY_URL: http://api-gateway:9000
       STUDENT_JWT_SECRET: ${STUDENT_JWT_SECRET:-student-secret-change-in-prod}
       DATABASE_URL: sqlite:////app/db/student_platform.db
@@ -329,10 +331,13 @@ services:
       DATABASE_URL: sqlite:////app/data/virtual_students.db
       KG_API_URL: http://contents-manager-backend:8010
       KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
+      STUDENT_PLATFORM_URL: http://student-platform-backend:8020
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "8030:8030"
     depends_on:
       - contents-manager-backend
+      - student-platform-backend
     volumes:
       - virtual_student_db:/app/data
     healthcheck:

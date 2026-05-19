@@ -3,6 +3,7 @@ import { SubjectProvider, useSubject } from './context/SubjectContext'
 import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
 import Features from './pages/Features'
+import Simulation from './pages/Simulation'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/students" element={<Students />} />
             <Route path="/features" element={<Features />} />
+            <Route path="/simulation" element={<Simulation />} />
           </Routes>
         </main>
       </div>
@@ -48,6 +50,7 @@ function SubNav() {
       <NavLink to="/" end>Dashboard</NavLink>
       <NavLink to="/students">Students</NavLink>
       <NavLink to="/features">Features</NavLink>
+      <NavLink to="/simulation">Simulation</NavLink>
     </nav>
   )
 }

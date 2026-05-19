@@ -285,3 +285,30 @@ def _band(avg: float) -> str:
     if avg >= 0.45:
         return "C"
     return "D"
+
+
+# ── 가상 학생 답변 생성 ───────────────────────────────────────────────────────
+
+def generate_answer_as_persona(
+    question: str,
+    persona_prompt: str,
+    subject_name: str,
+    conversation_history: list[dict] | None = None,
+) -> str:
+    """가상 학생 페르소나로 질문에 답변을 생성한다."""
+    history_text = _format_history(conversation_history or [])
+
+    system = (
+        f"You are a student with the following characteristics:\n{persona_prompt}\n\n"
+        "Answer the question naturally, consistent with your characteristics. "
+        "Respond only with your answer text — no meta-commentary."
+    )
+
+    user_parts = [
+        f"Subject: {subject_name}",
+        f"Question: {question}",
+    ]
+    if history_text:
+        user_parts.append(f"Conversation so far:\n{history_text}")
+
+    return _chat(system, "\n\n".join(user_parts), max_tokens=400)

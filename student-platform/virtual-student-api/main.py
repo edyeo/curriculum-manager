@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
-from routes import feature_definitions, stats, seed, subjects, generate, virtual_students
+from routes import feature_definitions, stats, seed, subjects, generate, virtual_students, simulate
 
 app = FastAPI(title="Virtual Student API", version="0.1.0")
 
@@ -20,6 +20,7 @@ app.include_router(seed.router)
 app.include_router(subjects.router)
 app.include_router(generate.router)
 app.include_router(virtual_students.router)
+app.include_router(simulate.router)
 
 
 @app.on_event("startup")

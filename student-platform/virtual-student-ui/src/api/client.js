@@ -73,3 +73,25 @@ export const seedStudents = (data) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+
+// ── Simulation ────────────────────────────────────────────────────────────────
+
+export const createSimulationRun = (data) =>
+  request(`${BASE}/simulate/runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+
+export const fetchSimulationRuns = (subjectId) => {
+  const q = subjectId ? `?subject_id=${subjectId}` : ''
+  return request(`${BASE}/simulate/runs${q}`)
+}
+
+export const fetchSimulationRun = (runId) =>
+  request(`${BASE}/simulate/runs/${runId}`)
+
+export const fetchKgQuestions = (subjectId) => {
+  const q = subjectId ? `?subject_id=${subjectId}` : ''
+  return request(`${BASE}/simulate/kg-questions${q}`).then(d => d?.questions ?? [])
+}
