@@ -51,6 +51,7 @@ class QuestionInput(BaseModel):
     question_id: Optional[str] = None
     correct_answer: Optional[str] = None
     explanation: Optional[str] = None
+    options: Optional[list] = None        # MCQ: [{label, text}]
 
 
 class SimulationRunRequest(BaseModel):
@@ -148,6 +149,8 @@ async def _simple_answer_and_grade(
         question=question.question_text,
         persona_prompt=persona_prompt,
         subject_name=subject_id,
+        question_type=question.question_type,
+        options=question.options,
     )
     grade_result = await _grade(question, answer_text)
     return AnswerOut(

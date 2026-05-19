@@ -273,6 +273,7 @@ function QuestionStep({ subjectId, questions, onQuestionsChange, onBack, onRun, 
       question_id: q.id,
       correct_answer: q.correct_answer || null,
       explanation: q.explanation || null,
+      options: q.options || null,
     }])
   }
 
