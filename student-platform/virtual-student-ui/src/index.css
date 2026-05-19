@@ -15,26 +15,52 @@ body {
   padding: 0 24px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   height: 56px;
   position: sticky;
   top: 0;
   z-index: 10;
 }
-.logo { font-weight: 700; font-size: 1.05rem; color: #4f46e5; }
-.header nav { display: flex; gap: 4px; }
-.header nav a {
-  padding: 6px 12px;
+.logo { font-weight: 700; font-size: 1.05rem; color: #4f46e5; white-space: nowrap; }
+
+.subject-select {
+  border: 1.5px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.875rem;
+  color: #1a1a1a;
+  background: #f5f3ff;
+  cursor: pointer;
+  max-width: 320px;
+  flex: 1;
+}
+.subject-select:focus { outline: 2px solid #6366f1; border-color: transparent; }
+
+/* ── Sub Navigation ──────────────────────────────────── */
+.subnav {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 24px;
+  display: flex;
+  gap: 4px;
+  height: 44px;
+  align-items: center;
+  position: sticky;
+  top: 56px;
+  z-index: 9;
+}
+.subnav a {
+  padding: 6px 14px;
   border-radius: 6px;
   text-decoration: none;
   color: #6b7280;
   font-size: 0.9rem;
 }
-.header nav a.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
-.header nav a:hover:not(.active) { background: #f3f4f6; }
+.subnav a.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+.subnav a:hover:not(.active) { background: #f3f4f6; }
 
 /* ── Layout ──────────────────────────────────────────── */
-.main { padding: 24px; max-width: 1200px; margin: 0 auto; width: 100%; }
+.main { padding: 24px; max-width: 1200px; margin: 0 auto; width: 100%; padding-top: 28px; }
 
 .section-header {
   display: flex;
@@ -287,12 +313,15 @@ body {
 .form-actions > button {
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid #d1d5db;
+  border: none;
   cursor: pointer;
   font-size: 0.875rem;
-  background: #fff;
+  font-weight: 600;
+  background: #1a1a1a;
+  color: #fff;
 }
-.form-actions > button:hover { background: #f3f4f6; }
+.form-actions > button:hover { background: #333; }
+.form-actions > button:disabled { background: #9ca3af; cursor: not-allowed; }
 
 /* ── Secondary Button ────────────────────────────────── */
 .btn-secondary {
@@ -347,6 +376,17 @@ body {
 }
 .modal-body input:focus, .modal-body select:focus { outline: 2px solid #6366f1; border-color: transparent; }
 .input-hint { font-size: 0.75rem; color: #9ca3af; font-weight: 400; }
+.modal-subject-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -356,12 +396,15 @@ body {
 .modal-actions > button {
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid #d1d5db;
+  border: none;
   cursor: pointer;
   font-size: 0.875rem;
-  background: #fff;
+  font-weight: 600;
+  background: #1a1a1a;
+  color: #fff;
 }
-.modal-actions > button:hover { background: #f3f4f6; }
+.modal-actions > button:hover { background: #333; }
+.modal-actions > button:disabled { background: #9ca3af; cursor: not-allowed; }
 
 /* overlay 재사용 — 모달은 가운데 정렬 */
 .overlay { align-items: flex-start; }

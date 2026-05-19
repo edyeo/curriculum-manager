@@ -1,31 +1,33 @@
 import { useState, useEffect } from 'react'
 import {
   fetchStudents, fetchStudent, createStudent, updateStudent,
-  deleteStudent, fetchFeatureDefinitions, generateStudents, fetchSubjects,
+  deleteStudent, fetchFeatureDefinitions, generateStudents,
 } from '../api/client'
+import { useSubject } from '../context/SubjectContext'
 
 export default function Students() {
+  const { selectedId: subjectId, subjects } = useSubject()
   const [students, setStudents] = useState({ total: 0, items: [] })
   const [features, setFeatures] = useState([])
-  const [subjects, setSubjects] = useState([])
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [showGenerate, setShowGenerate] = useState(false)
   const [editingStudent, setEditingStudent] = useState(null)
   const [error, setError] = useState(null)
 
-  useEffect(() => { load() }, [page])
+  useEffect(() => { setPage(1) }, [subjectId])
+  useEffect(() => { load() }, [subjectId, page])
 
   async function load() {
     try {
-      const [data, fds, subs] = await Promise.all([
-        fetchStudents({ page, page_size: 20 }),
+      const params = { page, page_size: 20 }
+      if (subjectId) params.subject_id = subjectId
+      const [data, fds] = await Promise.all([
+        fetchStudents(params),
         fetchFeatureDefinitions(),
-        fetchSubjects(),
       ])
       setStudents(data)
       setFeatures(fds)
-      setSubjects(subs)
     } catch (e) {
       setError(e.message)
     }
@@ -132,7 +134,6 @@ export default function Students() {
 
       {showGenerate && (
         <GenerateModal
-          subjects={subjects}
           onGenerate={async (params) => {
             await generateStudents(params)
             setShowGenerate(false)
@@ -146,9 +147,10 @@ export default function Students() {
 }
 
 function StudentFormPanel({ student, features, onSave, onClose }) {
+  const { selectedId: ctxSubjectId } = useSubject()
   const [name, setName] = useState(student?.name || '')
   const [description, setDescription] = useState(student?.description || '')
-  const [subjectId, setSubjectId] = useState(student?.subject_id || '')
+  const [subjectId, setSubjectId] = useState(student?.subject_id || ctxSubjectId)
   const [featureValues, setFeatureValues] = useState(() => {
     const map = {}
     if (student?.feature_values) {
@@ -258,8 +260,8 @@ function FeatureValueInput({ fd, value, onChange }) {
   return <input value={value} onChange={e => onChange(e.target.value)} />
 }
 
-function GenerateModal({ subjects, onGenerate, onClose }) {
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '')
+function GenerateModal({ onGenerate, onClose }) {
+  const { selectedId: subjectId, selected } = useSubject()
   const [count, setCount] = useState(10)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
@@ -284,15 +286,10 @@ function GenerateModal({ subjects, onGenerate, onClose }) {
           <button onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} className="modal-body">
-          <label>
-            Subject *
-            <select required value={subjectId} onChange={e => setSubjectId(e.target.value)}>
-              <option value="">선택하세요</option>
-              {subjects.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </label>
+          <div className="modal-subject-badge">
+            <span>Subject</span>
+            <span className="tag">{selected?.name ?? subjectId}</span>
+          </div>
           <label>
             생성 인원 *
             <input

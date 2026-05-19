@@ -2,20 +2,21 @@ import { useState, useEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { fetchStudents, fetchStats, fetchSubjects } from '../api/client'
+import { fetchStudents, fetchStats } from '../api/client'
+import { useSubject } from '../context/SubjectContext'
 
 const CATEGORY_TABS = ['전체', '숙련도', '학습특성', '기질', '답변 행동']
 
 export default function Dashboard() {
+  const { selectedId: subjectId } = useSubject()
   const [students, setStudents] = useState({ total: 0, items: [], page: 1, page_size: 20 })
   const [stats, setStats] = useState(null)
-  const [subjects, setSubjects] = useState([])
-  const [subjectId, setSubjectId] = useState('')
   const [page, setPage] = useState(1)
   const [categoryTab, setCategoryTab] = useState('전체')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  useEffect(() => { setPage(1) }, [subjectId])
   useEffect(() => { load() }, [subjectId, page])
 
   async function load() {
@@ -25,15 +26,13 @@ export default function Dashboard() {
       const params = { page, page_size: 20 }
       if (subjectId) params.subject_id = subjectId
 
-      const [studentsData, statsData, subjectsData] = await Promise.all([
+      const [studentsData, statsData] = await Promise.all([
         fetchStudents(params),
         fetchStats(subjectId || null),
-        fetchSubjects(),
       ])
 
       setStudents(studentsData)
       setStats(statsData)
-      setSubjects(subjectsData.map(s => ({ id: s.id, name: s.name })))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -50,10 +49,6 @@ export default function Dashboard() {
     <div>
       <div className="section-header">
         <h2>Dashboard</h2>
-        <select value={subjectId} onChange={e => { setSubjectId(e.target.value); setPage(1) }}>
-          <option value="">전체 Subject</option>
-          {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
       </div>
 
       {error && (
