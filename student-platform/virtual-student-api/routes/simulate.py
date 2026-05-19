@@ -9,6 +9,8 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+import kg_client
+import persona_agent
 from database import get_db
 from models import SimulationResult, SimulationRun, VirtualStudent, VirtualStudentFeatureValue
 
@@ -113,33 +115,139 @@ def _simple_answer(question_text: str, persona_prompt: str, subject_id: str) -> 
 
 
 # ── Interview Mode (Mode 2) ───────────────────────────────────────────────────
+# 오케스트레이션: virtual-student-api가 주도
+#   persona_agent  → 학생 답변 생성 (this service)
+#   /service/*     → 면접관·평가자 역할 (student-platform)
+
+_SVC_HEADERS = lambda: {"X-Service-Token": KG_SERVICE_TOKEN}
+MAX_INTERVIEW_TURNS = 5
+
+
+async def _svc_post(client: httpx.AsyncClient, path: str, payload: dict) -> dict:
+    resp = await client.post(
+        f"{STUDENT_PLATFORM_URL}/interview{path}",
+        json=payload,
+        headers=_SVC_HEADERS(),
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"interview{path} failed: {resp.text[:200]}")
+    return resp.json()
+
 
 async def _interview_run(
     subject_id: str,
     persona_prompt: str,
-    initial_mastery: Optional[dict] = None,
     uniform_mastery: Optional[float] = None,
 ) -> dict:
-    payload = {
-        "subject_id": subject_id,
-        "initial_mastery": initial_mastery or {},
-        "persona_prompt": persona_prompt,
-        "max_turns": 5,
-    }
-    if uniform_mastery is not None:
-        payload["uniform_mastery"] = uniform_mastery
+    nodes = await kg_client.get_nodes(subject_id)
+    if not nodes:
+        raise HTTPException(status_code=404, detail="Subject has no nodes")
+
+    subjects = await kg_client.get_subjects()
+    subject_name = next(
+        (s.get("name", subject_id) for s in subjects if s["id"] == subject_id),
+        subject_id,
+    )
+
+    node_blueprints = await kg_client.get_node_blueprints_bulk(nodes)
+    node_map = {n["id"]: n for n in nodes}
+
+    default_mastery = uniform_mastery if uniform_mastery is not None else 0.5
+    working_mastery = {n["id"]: default_mastery for n in nodes}
+
+    sorted_nodes = sorted(nodes, key=lambda n: working_mastery[n["id"]])
+    current_target_ids = [sorted_nodes[0]["id"]]
+    consecutive_followups = 0
+    turns = []
+
+    def _get_bps(target_ids):
+        seen, result = set(), []
+        for nid in target_ids:
+            for bp in node_blueprints.get(nid, []):
+                if bp["blueprint_id"] not in seen:
+                    seen.add(bp["blueprint_id"])
+                    result.append(bp)
+        return result
+
     async with httpx.AsyncClient(timeout=120.0) as client:
-        resp = await client.post(
-            f"{STUDENT_PLATFORM_URL}/interview/virtual-run",
-            json=payload,
-            headers={"X-Service-Token": KG_SERVICE_TOKEN},
-        )
-        if resp.status_code != 200:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Interview virtual-run failed: {resp.text[:200]}",
+        for turn_number in range(1, MAX_INTERVIEW_TURNS + 1):
+            target_nodes = [node_map[nid] for nid in current_target_ids if nid in node_map]
+            target_bps = _get_bps(current_target_ids)
+            avg_mastery = sum(working_mastery.get(nid, 0.5) for nid in current_target_ids) / max(len(current_target_ids), 1)
+            action = turns[-1]["action"] if turns else "pivot"
+
+            # 1. 면접관: 질문 생성 (student-platform)
+            q_resp = await _svc_post(client, "/service/question", {
+                "subject_name": subject_name,
+                "target_nodes": target_nodes,
+                "target_blueprints": target_bps,
+                "conversation_history": turns,
+                "action": action,
+                "mastery_level": avg_mastery,
+            })
+            question = q_resp["question"]
+
+            # 2. 학생: 답변 생성 (persona_agent — this service)
+            answer = persona_agent.generate_answer(
+                question=question,
+                persona_prompt=persona_prompt,
+                subject_name=subject_name,
+                conversation_history=turns,
             )
-        return resp.json()
+
+            # 3. 평가자: 채점 (student-platform)
+            eval_resp = await _svc_post(client, "/service/evaluate", {
+                "question": question,
+                "answer": answer,
+                "target_nodes": target_nodes,
+                "target_blueprints": target_bps,
+                "subject_name": subject_name,
+            })
+            score = float(eval_resp.get("score", 0.5))
+
+            for nid in current_target_ids:
+                cur = working_mastery.get(nid, 0.5)
+                working_mastery[nid] = round(0.3 * score + 0.7 * cur, 4)
+
+            # 4. 다음 타겟 선택 (student-platform)
+            covered = [nid for t in turns for nid in t["target_nodes"]] + current_target_ids
+            next_resp = await _svc_post(client, "/service/next-target", {
+                "working_mastery": working_mastery,
+                "nodes": nodes,
+                "covered_node_ids": covered,
+                "last_score": score,
+                "consecutive_followups": consecutive_followups,
+                "current_target_nodes": current_target_ids,
+            })
+            next_action = next_resp["action"]
+            consecutive_followups = (consecutive_followups + 1) if next_action == "follow_up" else 0
+
+            turns.append({
+                "turn_number": turn_number,
+                "question": question,
+                "answer": answer,
+                "score": score,
+                "feedback": eval_resp.get("feedback", ""),
+                "action": next_action,
+                "target_nodes": current_target_ids,
+            })
+
+            next_target_ids = next_resp["target_ids"]
+            if not next_target_ids:
+                break
+            current_target_ids = next_target_ids
+
+        # 5. 진단 생성 (student-platform)
+        assessed = list({nid for t in turns for nid in t["target_nodes"]})
+        diagnosis = await _svc_post(client, "/service/diagnose", {
+            "subject_name": subject_name,
+            "nodes": nodes,
+            "turns": turns,
+            "final_mastery": working_mastery,
+            "assessed_node_ids": assessed,
+        })
+
+    return {"turns": turns, "diagnosis": diagnosis}
 
 
 # ── KG 질문 조회 ──────────────────────────────────────────────────────────────
@@ -202,11 +310,10 @@ async def create_simulation_run(data: SimulationRunRequest, db: Session = Depend
             diagnosis = None
         else:
             # interview mode: prior_knowledge_level → 전 노드 uniform initial mastery
-            # (feature → node 타입별 mastery 파생은 backlog)
             interview_data = await _interview_run(
                 subject_id=data.subject_id,
-                uniform_mastery=prior_knowledge,
                 persona_prompt=persona,
+                uniform_mastery=prior_knowledge,
             )
             answers = [
                 {"question_text": t["question"], "answer_text": t["answer"]}

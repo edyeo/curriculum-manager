@@ -571,142 +571,100 @@ def get_diagnosis(
     }
 
 
-# ── POST /interview/virtual-run ───────────────────────────────────────────────
+# ── /interview/service/* — stateless 서비스 엔드포인트 (X-Service-Token 인증) ──
 
-import os as _os
-from fastapi import Request as FastAPIRequest
+import os as _os2
+from fastapi import Request as _Request
 
-VIRTUAL_SERVICE_TOKEN = _os.getenv("KG_SERVICE_TOKEN", "kg-service-secret")
-
-
-class VirtualRunRequest(BaseModel):
-    subject_id: str
-    initial_mastery: dict = {}    # node_id -> float (빈 경우 uniform_mastery 또는 0.5 사용)
-    uniform_mastery: Optional[float] = None  # prior_knowledge_level → 전 노드 균등 적용
-    persona_prompt: str
-    max_turns: int = 5
+_SVC_TOKEN = _os2.getenv("KG_SERVICE_TOKEN", "kg-service-secret")
 
 
-@router.post("/virtual-run")
-async def virtual_run(
-    req: VirtualRunRequest,
-    request: FastAPIRequest,
-    db: Session = Depends(get_db),
-):
-    """가상 학생 1명에 대한 인터뷰 세션을 자동 완주한다 (서비스 토큰 인증)."""
-    token = request.headers.get("X-Service-Token", "")
-    if token != VIRTUAL_SERVICE_TOKEN:
+def _svc_auth(request: _Request):
+    if request.headers.get("X-Service-Token", "") != _SVC_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid service token")
 
-    nodes = await kg_client.get_nodes(req.subject_id)
-    if not nodes:
-        raise HTTPException(status_code=404, detail="Subject not found or has no nodes")
 
-    subjects = await kg_client.get_subjects()
-    subject_name = next(
-        (s.get("name", req.subject_id) for s in subjects.get("subjects", []) if s["id"] == req.subject_id),
-        req.subject_id,
+class SvcQuestionRequest(BaseModel):
+    subject_name: str
+    target_nodes: list        # [{id, name, description}]
+    target_blueprints: list   # blueprint list
+    conversation_history: list = []
+    action: str = "pivot"
+    mastery_level: float = 0.5
+
+
+@router.post("/service/question")
+async def svc_generate_question(req: SvcQuestionRequest, request: _Request):
+    _svc_auth(request)
+    question = agent.generate_question(
+        subject_name=req.subject_name,
+        target_nodes=req.target_nodes,
+        target_blueprints=req.target_blueprints,
+        conversation_history=req.conversation_history,
+        action=req.action,
+        mastery_level=req.mastery_level,
+    )
+    return {"question": question}
+
+
+class SvcEvaluateRequest(BaseModel):
+    question: str
+    answer: str
+    target_nodes: list
+    target_blueprints: list
+    subject_name: str
+
+
+@router.post("/service/evaluate")
+async def svc_evaluate_answer(req: SvcEvaluateRequest, request: _Request):
+    _svc_auth(request)
+    return agent.evaluate_answer(
+        question=req.question,
+        answer=req.answer,
+        target_nodes=req.target_nodes,
+        target_blueprints=req.target_blueprints,
+        subject_name=req.subject_name,
     )
 
-    blueprint_results = await asyncio.gather(
-        *[kg_client.get_node_blueprints(n["id"]) for n in nodes],
-        return_exceptions=True,
+
+class SvcNextTargetRequest(BaseModel):
+    working_mastery: dict
+    nodes: list
+    covered_node_ids: list
+    last_score: Optional[float] = None
+    consecutive_followups: int = 0
+    current_target_nodes: Optional[list] = None
+
+
+@router.post("/service/next-target")
+def svc_next_target(req: SvcNextTargetRequest, request: _Request):
+    _svc_auth(request)
+    target_ids, action = agent.select_target_nodes(
+        working_mastery=req.working_mastery,
+        nodes=req.nodes,
+        covered_node_ids=set(req.covered_node_ids),
+        last_score=req.last_score,
+        consecutive_followups=req.consecutive_followups,
+        current_target_nodes=req.current_target_nodes,
     )
-    node_blueprints = {
-        nodes[i]["id"]: (blueprint_results[i] if not isinstance(blueprint_results[i], Exception) else [])
-        for i in range(len(nodes))
-    }
+    return {"target_ids": target_ids, "action": action}
 
-    default_mastery = req.uniform_mastery if req.uniform_mastery is not None else 0.5
-    working_mastery = dict(req.initial_mastery)
-    for n in nodes:
-        working_mastery.setdefault(n["id"], default_mastery)
 
-    sorted_nodes = sorted(nodes, key=lambda n: working_mastery.get(n["id"], 0.5))
-    current_target_ids = [sorted_nodes[0]["id"]]
-    consecutive_followups = 0
-    turns = []
+class SvcDiagnoseRequest(BaseModel):
+    subject_name: str
+    nodes: list
+    turns: list
+    final_mastery: dict
+    assessed_node_ids: list
 
-    node_map = {n["id"]: n for n in nodes}
 
-    def _get_bps(target_ids):
-        seen, result = set(), []
-        for nid in target_ids:
-            for bp in node_blueprints.get(nid, []):
-                if bp["blueprint_id"] not in seen:
-                    seen.add(bp["blueprint_id"])
-                    result.append(bp)
-        return result
-
-    for turn_number in range(1, req.max_turns + 1):
-        target_nodes = [node_map[nid] for nid in current_target_ids if nid in node_map]
-        target_bps = _get_bps(current_target_ids)
-        avg_mastery = sum(working_mastery.get(nid, 0.5) for nid in current_target_ids) / max(len(current_target_ids), 1)
-
-        action = "pivot" if turn_number == 1 else turns[-1].get("action", "pivot")
-        question = agent.generate_question(
-            subject_name=subject_name,
-            target_nodes=target_nodes,
-            target_blueprints=target_bps,
-            conversation_history=turns,
-            action=action,
-            mastery_level=avg_mastery,
-        )
-
-        answer = agent.generate_answer_as_persona(
-            question=question,
-            persona_prompt=req.persona_prompt,
-            subject_name=subject_name,
-            conversation_history=turns,
-        )
-
-        evaluation = agent.evaluate_answer(
-            question=question,
-            answer=answer,
-            target_nodes=target_nodes,
-            target_blueprints=target_bps,
-            subject_name=subject_name,
-        )
-        score = float(evaluation.get("score", 0.5))
-
-        for nid in current_target_ids:
-            current = working_mastery.get(nid, 0.5)
-            working_mastery[nid] = agent.apply_ema(current, score)
-
-        covered = {nid for t in turns for nid in t["target_nodes"]}
-        covered.update(current_target_ids)
-
-        next_target_ids, next_action = agent.select_target_nodes(
-            working_mastery=working_mastery,
-            nodes=nodes,
-            covered_node_ids=covered,
-            last_score=score,
-            consecutive_followups=consecutive_followups,
-            current_target_nodes=current_target_ids,
-        )
-        consecutive_followups = (consecutive_followups + 1) if next_action == "follow_up" else 0
-
-        turns.append({
-            "turn_number": turn_number,
-            "question": question,
-            "answer": answer,
-            "score": score,
-            "feedback": evaluation.get("feedback", ""),
-            "action": next_action,
-            "target_nodes": current_target_ids,
-        })
-
-        if not next_target_ids:
-            break
-        current_target_ids = next_target_ids
-
-    assessed_node_ids = {nid for t in turns for nid in t["target_nodes"]}
-    diagnosis = agent.generate_diagnosis(
-        subject_name=subject_name,
-        nodes=nodes,
-        turns=turns,
-        final_mastery=working_mastery,
-        assessed_node_ids=assessed_node_ids,
+@router.post("/service/diagnose")
+async def svc_diagnose(req: SvcDiagnoseRequest, request: _Request):
+    _svc_auth(request)
+    return agent.generate_diagnosis(
+        subject_name=req.subject_name,
+        nodes=req.nodes,
+        turns=req.turns,
+        final_mastery=req.final_mastery,
+        assessed_node_ids=set(req.assessed_node_ids),
     )
-
-    return {"turns": turns, "diagnosis": diagnosis}
