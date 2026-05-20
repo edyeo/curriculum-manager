@@ -24,9 +24,7 @@ def get_db():
 
 
 def init_db():
-    from models import VirtualStudentFeatureDefinition, VirtualStudent, VirtualStudentFeatureValue  # noqa
-    Base.metadata.create_all(bind=engine)
-    _seed_default_features()
+    _seed_default_features()  # schema managed by Alembic; only seed static data here
 
 
 def _seed_default_features():
