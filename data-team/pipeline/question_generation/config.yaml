@@ -5,6 +5,9 @@ api:
   email: "admin@example.com"
   password: "admin1234"
 
+# 중간 산출물 저장 경로 (실행 후 load_and_save 커맨드로 DB에 저장)
+output_dir: "../../data/output"
+
 # 강화 대상 선정: 노드별 published 문제 수 < min_questions 인 (node, question_type) 조합
 min_questions: 3
 question_types:

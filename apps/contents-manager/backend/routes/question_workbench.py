@@ -253,6 +253,8 @@ def save_question(
         correct_answer=body["correct_answer"],
         explanation=body.get("explanation"),
         node_snapshot=json.dumps(body.get("node_snapshot")) if body.get("node_snapshot") else None,
+        question_type=body.get("question_type", "MCQ"),
+        difficulty=body.get("difficulty", "medium"),
         status="draft",
     )
     db.add(qi)
