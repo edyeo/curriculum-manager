@@ -25,7 +25,7 @@ services:
 
   contents-manager-backend:
     volumes:
-      - ${WORKTREE_ROOT}/contents-manager/backend:/app
+      - ${WORKTREE_ROOT}/apps/contents-manager/backend:/app
       - ${WORKTREE_ROOT}/nodes.json:/app/data/nodes.json
       - ${WORKTREE_ROOT}/edges.json:/app/data/edges.json
 
@@ -33,12 +33,12 @@ services:
     environment:
       API_PROXY_TARGET: http://contents-manager-backend:8010
     volumes:
-      - ${WORKTREE_ROOT}/contents-manager/frontend:/app
+      - ${WORKTREE_ROOT}/apps/contents-manager/frontend:/app
       - /app/node_modules
 
   student-platform-backend:
     volumes:
-      - ${WORKTREE_ROOT}/student-platform/backend:/app
+      - ${WORKTREE_ROOT}/apps/student-platform/backend:/app
       - student_db:/app/db
 
   student-platform-frontend:
@@ -46,5 +46,5 @@ services:
     environment:
       API_PROXY_TARGET: http://student-platform-backend:8020
     volumes:
-      - ${WORKTREE_ROOT}/student-platform/frontend:/app
+      - ${WORKTREE_ROOT}/apps/student-platform/frontend:/app
       - /app/node_modules

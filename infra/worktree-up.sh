@@ -97,7 +97,7 @@ init_data_file "$WORKTREE_ROOT/edges.json"
 # backend/data/ 동기화 (Mac Docker 중첩 bind mount 우선순위 문제 우회)
 # WORKTREE_ROOT/nodes.json 이 정본(master). backend/data/ 로 복사해 두면
 # contents-manager-backend 볼륨 마운트가 올바른 데이터를 읽는다.
-BACKEND_DATA="$WORKTREE_ROOT/contents-manager/backend/data"
+BACKEND_DATA="$WORKTREE_ROOT/apps/contents-manager/backend/data"
 mkdir -p "$BACKEND_DATA"
 for name in nodes.json edges.json; do
   target="$BACKEND_DATA/$name"

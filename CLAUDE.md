@@ -15,9 +15,15 @@ curriculum-manager/
 │   │       ├── graphs/      # LangGraph 파이프라인 (draft / link / expand)
 │   │       └── harness.py   # 트리거 진입점 디스패처
 │   └── shared/              # 공유 스키마·유틸
-├── contents-manager/
-│   ├── backend/             # FastAPI (노드·엣지 CRUD, AI 트리거 프록시)
-│   └── frontend/            # React + Vite (편집·그래프·리서치 탭)
+├── apps/                    # FE/BE 애플리케이션
+│   ├── contents-manager/
+│   │   ├── backend/         # FastAPI (노드·엣지 CRUD, AI 트리거 프록시)
+│   │   └── frontend/        # React + Vite (편집·그래프·리서치 탭)
+│   └── student-platform/
+│       ├── backend/         # FastAPI (학생 플랫폼 API)
+│       ├── frontend/        # React + Vite (학생 UI)
+│       ├── virtual-student-api/
+│       └── virtual-student-ui/
 └── docs/backlog/            # 기능 요건 및 티켓 문서
 ```
 

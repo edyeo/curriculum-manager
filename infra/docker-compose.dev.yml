@@ -38,14 +38,14 @@ services:
   contents-manager-backend:
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
     volumes:
-      - ../contents-manager/backend:/app
+      - ../apps/contents-manager/backend:/app
 
   contents-manager-frontend:
     build:
-      context: ../contents-manager/frontend
+      context: ../apps/contents-manager/frontend
       dockerfile: Dockerfile.dev
     volumes:
-      - ../contents-manager/frontend:/app
+      - ../apps/contents-manager/frontend:/app
       - /app/node_modules
     ports:
       - "3000:3000"
@@ -53,16 +53,16 @@ services:
   virtual-student-api:
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8030", "--reload"]
     volumes:
-      - ../student-platform/virtual-student-api:/app
+      - ../apps/student-platform/virtual-student-api:/app
 
   virtual-student-ui:
     build:
-      context: ../student-platform/virtual-student-ui
+      context: ../apps/student-platform/virtual-student-ui
       dockerfile: Dockerfile.dev
     environment:
       API_PROXY_TARGET: http://virtual-student-api:8030
     volumes:
-      - ../student-platform/virtual-student-ui:/app
+      - ../apps/student-platform/virtual-student-ui:/app
       - /app/node_modules
     ports:
       - "3010:3010"

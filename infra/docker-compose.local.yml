@@ -230,7 +230,7 @@ services:
   # Contents Manager Backend
   contents-manager-backend:
     build:
-      context: ../contents-manager/backend
+      context: ../apps/contents-manager/backend
       dockerfile: Dockerfile
     container_name: contents-manager-backend
     environment:
@@ -262,7 +262,7 @@ services:
   # Contents Manager Frontend
   contents-manager-frontend:
     build:
-      context: ../contents-manager/frontend
+      context: ../apps/contents-manager/frontend
       dockerfile: Dockerfile
     container_name: contents-manager-frontend
     ports:
@@ -278,7 +278,7 @@ services:
   # Student Platform Backend
   student-platform-backend:
     build:
-      context: ../student-platform/backend
+      context: ../apps/student-platform/backend
       dockerfile: Dockerfile
     container_name: student-platform-backend
     environment:
@@ -305,7 +305,7 @@ services:
   # Student Platform Frontend
   student-platform-frontend:
     build:
-      context: ../student-platform/frontend
+      context: ../apps/student-platform/frontend
       dockerfile: Dockerfile
     container_name: student-platform-frontend
     environment:
@@ -323,7 +323,7 @@ services:
   # Virtual Student API
   virtual-student-api:
     build:
-      context: ../student-platform/virtual-student-api
+      context: ../apps/student-platform/virtual-student-api
       dockerfile: Dockerfile
     container_name: virtual-student-api
     environment:
@@ -349,7 +349,7 @@ services:
   # Virtual Student UI
   virtual-student-ui:
     build:
-      context: ../student-platform/virtual-student-ui
+      context: ../apps/student-platform/virtual-student-ui
       dockerfile: Dockerfile
     container_name: virtual-student-ui
     ports:
