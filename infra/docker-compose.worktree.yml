@@ -3,7 +3,7 @@
 # worktree-up.sh 가 .env.local 에 WORKTREE_ROOT 를 자동 설정한다.
 #
 # 직접 실행 시:
-#   cd agent-platform/infra
+#   cd infra
 #   bash worktree-up.sh
 
 version: '3.9'

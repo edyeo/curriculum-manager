@@ -4,13 +4,17 @@
 
 ```
 curriculum-manager/
+├── infra/                   # Docker Compose 설정 (전체 스택)
+│   ├── docker-compose.local.yml
+│   ├── docker-compose.dev.yml
+│   ├── docker-compose.worktree.yml
+│   └── worktree-up.sh
 ├── agent-platform/          # AI 에이전트 서비스 (LangGraph 기반)
 │   ├── agents/
 │   │   └── curriculum-manager/src/
 │   │       ├── graphs/      # LangGraph 파이프라인 (draft / link / expand)
 │   │       └── harness.py   # 트리거 진입점 디스패처
-│   ├── shared/              # 공유 스키마·유틸
-│   └── infra/               # Docker Compose 설정
+│   └── shared/              # 공유 스키마·유틸
 ├── contents-manager/
 │   ├── backend/             # FastAPI (노드·엣지 CRUD, AI 트리거 프록시)
 │   └── frontend/            # React + Vite (편집·그래프·리서치 탭)
@@ -25,7 +29,7 @@ curriculum-manager/
 ### 1. OPENAI_API_KEY 설정
 
 ```bash
-# agent-platform/infra/.env.local
+# infra/.env.local
 OPENAI_API_KEY=sk-...   # 실제 키 입력
 ```
 
@@ -34,7 +38,7 @@ OPENAI_API_KEY=sk-...   # 실제 키 입력
 ### 2. 서비스 기동
 
 ```bash
-cd agent-platform/infra
+cd infra
 bash worktree-up.sh          # 기동 (up)
 bash worktree-up.sh down     # 종료
 ```
@@ -48,10 +52,10 @@ bash worktree-up.sh down     # 종료
 ### 3. 직접 실행 (스크립트 없이)
 
 ```bash
-cd agent-platform/infra
+cd infra
 
 # .env.local 에 WORKTREE_ROOT 추가
-echo "WORKTREE_ROOT=$(cd ../.. && pwd)" >> .env.local
+echo "WORKTREE_ROOT=$(cd .. && pwd)" >> .env.local
 
 docker compose --env-file .env.local \
   -f docker-compose.local.yml \

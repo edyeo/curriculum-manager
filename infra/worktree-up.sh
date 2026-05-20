@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # worktree-up.sh — 워크트리에서 개발 서버 기동
-# 위치: agent-platform/infra/worktree-up.sh
+# 위치: infra/worktree-up.sh
 #
 # 실행:
-#   cd agent-platform/infra
+#   cd infra
 #   bash worktree-up.sh [up|down|restart]
 #
 # 전제조건:
@@ -13,7 +13,7 @@
 set -e
 
 INFRA_DIR="$(cd "$(dirname "$0")" && pwd)"
-WORKTREE_ROOT="$(cd "$INFRA_DIR/../.." && pwd)"
+WORKTREE_ROOT="$(cd "$INFRA_DIR/.." && pwd)"
 ENV_FILE="$INFRA_DIR/.env.local"
 CMD="${1:-up}"
 
@@ -40,7 +40,7 @@ fi
 
 # OPENAI_API_KEY — main repo .env 에서 동기화 (sk- prefix 누락 방지)
 MAIN_REPO="$(git -C "$WORKTREE_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname 2>/dev/null || echo "")"
-MAIN_ENV="$MAIN_REPO/agent-platform/infra/.env"
+MAIN_ENV="$MAIN_REPO/infra/.env"
 if [ -f "$MAIN_ENV" ]; then
   MAIN_KEY=$(grep "^OPENAI_API_KEY=" "$MAIN_ENV" | cut -d= -f2-)
   if [ -n "$MAIN_KEY" ]; then

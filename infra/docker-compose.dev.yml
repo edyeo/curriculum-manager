@@ -11,41 +11,41 @@ services:
   curriculum-manager:
     entrypoint: ["uvicorn", "apps.curriculum_manager.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
     volumes:
-      - ../apps:/app/apps
+      - ../agent-platform/apps:/app/apps
 
   mental-model-manager:
     entrypoint: ["uvicorn", "apps.mental_model_manager.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
     volumes:
-      - ../apps:/app/apps
+      - ../agent-platform/apps:/app/apps
 
   researcher:
     entrypoint: ["uvicorn", "apps.researcher.main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
     volumes:
-      - ../apps:/app/apps
+      - ../agent-platform/apps:/app/apps
 
   question-generator:
     entrypoint: ["uvicorn", "apps.question_generator.main:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
     volumes:
-      - ../apps:/app/apps
+      - ../agent-platform/apps:/app/apps
 
   gateway:
     entrypoint: ["uvicorn", "apps.gateway:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
     volumes:
-      - ../apps:/app/apps
-      - ../agents:/app/agents
-      - ../shared:/app/shared
+      - ../agent-platform/apps:/app/apps
+      - ../agent-platform/agents:/app/agents
+      - ../agent-platform/shared:/app/shared
 
   contents-manager-backend:
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
     volumes:
-      - ../../contents-manager/backend:/app
+      - ../contents-manager/backend:/app
 
   contents-manager-frontend:
     build:
-      context: ../../contents-manager/frontend
+      context: ../contents-manager/frontend
       dockerfile: Dockerfile.dev
     volumes:
-      - ../../contents-manager/frontend:/app
+      - ../contents-manager/frontend:/app
       - /app/node_modules
     ports:
       - "3000:3000"
@@ -53,16 +53,16 @@ services:
   virtual-student-api:
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8030", "--reload"]
     volumes:
-      - ../../student-platform/virtual-student-api:/app
+      - ../student-platform/virtual-student-api:/app
 
   virtual-student-ui:
     build:
-      context: ../../student-platform/virtual-student-ui
+      context: ../student-platform/virtual-student-ui
       dockerfile: Dockerfile.dev
     environment:
       API_PROXY_TARGET: http://virtual-student-api:8030
     volumes:
-      - ../../student-platform/virtual-student-ui:/app
+      - ../student-platform/virtual-student-ui:/app
       - /app/node_modules
     ports:
       - "3010:3010"
