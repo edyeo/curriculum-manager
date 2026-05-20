@@ -17,18 +17,36 @@ WORKTREE_ROOT="$(cd "$INFRA_DIR/.." && pwd)"
 ENV_FILE="$INFRA_DIR/.env.local"
 CMD="${1:-up}"
 
+# ── 최상위 .env 에서 키 로드 ─────────────────────────────────
+
+MAIN_REPO="$(git -C "$WORKTREE_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname 2>/dev/null || echo "")"
+MAIN_ENV="$MAIN_REPO/infra/.env"
+MAIN_KEY=""
+if [ -f "$MAIN_ENV" ]; then
+  MAIN_KEY=$(grep "^OPENAI_API_KEY=" "$MAIN_ENV" | cut -d= -f2-)
+fi
+
 # ── .env.local 준비 ──────────────────────────────────────────
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "⚠️  .env.local 없음 → 템플릿 생성"
-  cat > "$ENV_FILE" <<EOF
+  if [ -z "$MAIN_KEY" ]; then
+    echo "⚠️  .env.local 없음 → 템플릿 생성"
+    cat > "$ENV_FILE" <<EOF
 OPENAI_API_KEY=sk-your-key-here
 DB_TYPE=file
 LOG_LEVEL=DEBUG
 WORKTREE_ROOT=${WORKTREE_ROOT}
 EOF
-  echo "✏️  $ENV_FILE 에 OPENAI_API_KEY 를 설정하고 다시 실행하세요."
-  exit 1
+    echo "✏️  $ENV_FILE 에 OPENAI_API_KEY 를 설정하고 다시 실행하세요."
+    exit 1
+  fi
+  echo "📄 .env.local 자동 생성 (최상위 .env 참조)"
+  cat > "$ENV_FILE" <<EOF
+OPENAI_API_KEY=${MAIN_KEY}
+DB_TYPE=file
+LOG_LEVEL=DEBUG
+WORKTREE_ROOT=${WORKTREE_ROOT}
+EOF
 fi
 
 # WORKTREE_ROOT 갱신 (경로가 바뀐 경우 대비)
@@ -39,18 +57,13 @@ else
 fi
 
 # OPENAI_API_KEY — main repo .env 에서 동기화 (sk- prefix 누락 방지)
-MAIN_REPO="$(git -C "$WORKTREE_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs dirname 2>/dev/null || echo "")"
-MAIN_ENV="$MAIN_REPO/infra/.env"
-if [ -f "$MAIN_ENV" ]; then
-  MAIN_KEY=$(grep "^OPENAI_API_KEY=" "$MAIN_ENV" | cut -d= -f2-)
-  if [ -n "$MAIN_KEY" ]; then
-    if grep -q "^OPENAI_API_KEY=" "$ENV_FILE"; then
-      sed -i '' "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=${MAIN_KEY}|" "$ENV_FILE"
-    else
-      echo "OPENAI_API_KEY=${MAIN_KEY}" >> "$ENV_FILE"
-    fi
-    echo "🔑 OPENAI_API_KEY ← main repo .env 동기화"
+if [ -n "$MAIN_KEY" ]; then
+  if grep -q "^OPENAI_API_KEY=" "$ENV_FILE"; then
+    sed -i '' "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY=${MAIN_KEY}|" "$ENV_FILE"
+  else
+    echo "OPENAI_API_KEY=${MAIN_KEY}" >> "$ENV_FILE"
   fi
+  echo "🔑 OPENAI_API_KEY ← main repo .env 동기화"
 fi
 
 echo "📂 WORKTREE_ROOT: $WORKTREE_ROOT"

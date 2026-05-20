@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, Float, Integer, JSON, Text, ForeignKey, TIMESTAMP, func
 from database import Base
 
@@ -109,7 +109,7 @@ class KGNode(Base):
     name = Column(Text, nullable=False)
     description = Column(Text)
     node_metadata = Column("metadata", JSON, default=dict)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
     created_by_trigger = Column(Text)
 
 
@@ -121,7 +121,7 @@ class KGEdge(Base):
     target_id = Column(Text, nullable=False)
     relation_type = Column(Text, nullable=False)
     logic_basis = Column(Text)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
     created_by_trigger = Column(Text)
 
 
