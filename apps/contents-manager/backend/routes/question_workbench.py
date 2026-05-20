@@ -19,6 +19,7 @@ class GenerateRequest(BaseModel):
     blueprint_id: Optional[str] = None
     integration_item_id: Optional[str] = None
     question_type: Optional[str] = "MCQ"
+    count: Optional[int] = 3
 
 class SubgraphSearchRequest(BaseModel):
     integration_item_id: str
@@ -75,7 +76,7 @@ def _question_to_dict(q: QuestionItem, db=None) -> dict:
 
 def _run_generation(job_id: str, entity_id: str, blueprint_id: Optional[str],
                     integration_item_id: Optional[str], blueprint_context: str = "",
-                    question_type: str = "MCQ"):
+                    question_type: str = "MCQ", count: int = 3):
     from database import SessionLocal
     db = SessionLocal()
     try:
@@ -90,6 +91,7 @@ def _run_generation(job_id: str, entity_id: str, blueprint_id: Optional[str],
             integration_item_id=integration_item_id,
             blueprint_context=blueprint_context,
             question_type=question_type,
+            count=count,
         ))
 
         job.status = "completed"
@@ -154,6 +156,7 @@ def start_generation(
         body.integration_item_id,
         blueprint_context,
         body.question_type or "MCQ",
+        body.count or 3,
     )
     return {"job_id": job.id, "status": "pending"}
 

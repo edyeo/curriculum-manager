@@ -18,6 +18,7 @@ class WorkbenchGenerateRequest(BaseModel):
     integration_item_id: Optional[str] = None
     blueprint_context: Optional[str] = ""
     question_type: Optional[str] = "MCQ"
+    count: Optional[int] = 3
 
 
 class SubgraphSearchRequest(BaseModel):
@@ -154,6 +155,7 @@ async def generate_workbench(request: WorkbenchGenerateRequest):
             "integration_item_id": request.integration_item_id,
             "blueprint_context": request.blueprint_context or "",
             "question_type": request.question_type or "MCQ",
+            "count": request.count or 3,
             "entity": None,
             "siblings": [],
             "antipatterns": [],
