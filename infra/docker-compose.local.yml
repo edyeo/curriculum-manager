@@ -37,7 +37,7 @@ services:
   # Curriculum Manager Agent
   curriculum-manager:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: curriculum-manager
@@ -58,10 +58,10 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../agents/curriculum-manager:/app/agents/curriculum-manager
-      - ../shared:/app/shared
-      - ../../nodes.json:/app/nodes.json
-      - ../../edges.json:/app/edges.json
+      - ../agent-platform/agents/curriculum-manager:/app/agents/curriculum-manager
+      - ../agent-platform/shared:/app/shared
+      - ../nodes.json:/app/nodes.json
+      - ../edges.json:/app/edges.json
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 10s
@@ -71,7 +71,7 @@ services:
   # Mental Model Manager Agent
   mental-model-manager:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: mental-model-manager
@@ -94,8 +94,8 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../agents/mental-model-manager:/app/agents/mental-model-manager
-      - ../shared:/app/shared
+      - ../agent-platform/agents/mental-model-manager:/app/agents/mental-model-manager
+      - ../agent-platform/shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 10s
@@ -105,7 +105,7 @@ services:
   # Researcher Agent
   researcher:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: researcher
@@ -130,9 +130,9 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../agents/researcher:/app/agents/researcher
-      - ../shared:/app/shared
-      - ../../nodes.json:/app/nodes.json
+      - ../agent-platform/agents/researcher:/app/agents/researcher
+      - ../agent-platform/shared:/app/shared
+      - ../nodes.json:/app/nodes.json
       - research_results:/app/research_results
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
@@ -143,7 +143,7 @@ services:
   # Question Generator Agent
   question-generator:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: question-generator
@@ -166,8 +166,8 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../agents/question-generator:/app/agents/question-generator
-      - ../shared:/app/shared
+      - ../agent-platform/agents/question-generator:/app/agents/question-generator
+      - ../agent-platform/shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 10s
@@ -177,7 +177,7 @@ services:
   # Grader Agent
   grader:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: grader
@@ -199,7 +199,7 @@ services:
   # API Gateway
   gateway:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: gateway
@@ -230,7 +230,7 @@ services:
   # Contents Manager Backend
   contents-manager-backend:
     build:
-      context: ../../contents-manager/backend
+      context: ../apps/contents-manager/backend
       dockerfile: Dockerfile
     container_name: contents-manager-backend
     environment:
@@ -249,9 +249,9 @@ services:
     depends_on:
       - gateway
     volumes:
-      - ../../nodes.json:/app/data/nodes.json
-      - ../../edges.json:/app/data/edges.json
-      - ../../agent-platform/shared/ontology.yaml:/app/data/ontology.yaml:ro
+      - ../nodes.json:/app/data/nodes.json
+      - ../edges.json:/app/data/edges.json
+      - ../agent-platform/shared/ontology.yaml:/app/data/ontology.yaml:ro
       - cm_db:/app/cm_db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/api/health"]
@@ -262,7 +262,7 @@ services:
   # Contents Manager Frontend
   contents-manager-frontend:
     build:
-      context: ../../contents-manager/frontend
+      context: ../apps/contents-manager/frontend
       dockerfile: Dockerfile
     container_name: contents-manager-frontend
     ports:
@@ -278,15 +278,13 @@ services:
   # Student Platform Backend
   student-platform-backend:
     build:
-      context: ../../student-platform/backend
+      context: ../apps/student-platform/backend
       dockerfile: Dockerfile
     container_name: student-platform-backend
     environment:
       KG_API_URL: http://contents-manager-backend:8010
       KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
       STUDENT_PLATFORM_URL: http://student-platform-backend:8020
-      GATEWAY_URL: http://api-gateway:9000
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GATEWAY_URL: http://api-gateway:9000
       STUDENT_JWT_SECRET: ${STUDENT_JWT_SECRET:-student-secret-change-in-prod}
       DATABASE_URL: sqlite:////app/db/student_platform.db
@@ -307,7 +305,7 @@ services:
   # Student Platform Frontend
   student-platform-frontend:
     build:
-      context: ../../student-platform/frontend
+      context: ../apps/student-platform/frontend
       dockerfile: Dockerfile
     container_name: student-platform-frontend
     environment:
@@ -325,7 +323,7 @@ services:
   # Virtual Student API
   virtual-student-api:
     build:
-      context: ../../student-platform/virtual-student-api
+      context: ../apps/student-platform/virtual-student-api
       dockerfile: Dockerfile
     container_name: virtual-student-api
     environment:
@@ -351,7 +349,7 @@ services:
   # Virtual Student UI
   virtual-student-ui:
     build:
-      context: ../../student-platform/virtual-student-ui
+      context: ../apps/student-platform/virtual-student-ui
       dockerfile: Dockerfile
     container_name: virtual-student-ui
     ports:

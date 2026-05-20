@@ -34,7 +34,7 @@ services:
 
   curriculum-manager:
     build:
-      context: ..
+      context: ../agent-platform
       dockerfile: Dockerfile
       args:
         AGENT: curriculum-manager
@@ -56,9 +56,9 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../agents:/app/agents
-      - ../shared:/app/shared
-      - ../apps:/app/apps
+      - ../agent-platform/agents:/app/agents
+      - ../agent-platform/shared:/app/shared
+      - ../agent-platform/apps:/app/apps
       - ../nodes.json:/app/nodes.json
       - ../edges.json:/app/edges.json
     command: python /app/apps/curriculum_manager/main.py
