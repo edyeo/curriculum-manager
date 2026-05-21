@@ -123,3 +123,44 @@ class InterviewDiagnosis(Base):
     recommendations = Column(JSON)
     node_final_mastery = Column(JSON)                  # 최종 mastery 상태
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── EPIC-013: 가상 학생 합성 데이터 ──────────────────────────────────────────────
+
+class VirtualStudent(Base):
+    """virtual-student-api의 가상 학생을 student_platform에 등록 (INTEGER PK 정합성)."""
+    __tablename__ = "virtual_students"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    vs_api_id = Column(String, unique=True, nullable=False)  # virtual-student-api UUID
+    name = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VirtualStudySession(Base):
+    """가상 학생 합성 답변 이력 — study_sessions와 동일 스키마."""
+    __tablename__ = "virtual_study_sessions"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("virtual_students.id"), nullable=False)
+    question_id = Column(String, nullable=False)
+    node_id = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    user_answer = Column(Text)
+    is_correct = Column(Boolean)
+    score = Column(Float)
+    feedback = Column(Text)
+    time_taken_seconds = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VirtualNodeMastery(Base):
+    """가상 학생 노드 숙련도 — node_mastery와 동일 스키마."""
+    __tablename__ = "virtual_node_mastery"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("virtual_students.id"), nullable=False)
+    node_id = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    mastery_score = Column(Float, default=0.5)
+    attempt_count = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("student_id", "node_id", name="uq_vs_node"),)

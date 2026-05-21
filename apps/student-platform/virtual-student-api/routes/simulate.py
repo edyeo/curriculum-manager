@@ -462,6 +462,64 @@ def get_simulation_run(run_id: str, db: Session = Depends(get_db)):
     )
 
 
+# ── POST /simulate/generate-and-grade ────────────────────────────────────────
+
+
+class PersonaDict(BaseModel):
+    prior_knowledge_level: float = 0.5
+    conceptual_depth: str = "보통"
+    reasoning_style: str = "단계적"
+    verbosity: str = "보통"
+    confidence_level: str = "보통"
+    learning_pace: str = "보통"
+
+
+class GenerateAndGradeRequest(BaseModel):
+    name: str = "학생"
+    persona: PersonaDict
+    subject_id: str
+    questions: list[QuestionInput]
+
+
+class AnswerWithId(BaseModel):
+    question_id: Optional[str] = None
+    answer_text: str
+    is_correct: Optional[bool] = None
+    score: Optional[float] = None
+    feedback: Optional[str] = None
+
+
+def _build_persona_prompt_from_dict(name: str, persona: dict) -> str:
+    lines = [f"Name: {name}"]
+    for key, value in persona.items():
+        lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
+@router.post("/generate-and-grade", response_model=list[AnswerWithId])
+async def generate_and_grade(data: GenerateAndGradeRequest):
+    """인라인 페르소나 + 배치 문제 → 배치 답변+채점. DB 레코드 생성 없음 (stateless)."""
+    persona_prompt = _build_persona_prompt_from_dict(data.name, data.persona.model_dump())
+    results = []
+    for q in data.questions:
+        answer_text = persona_agent.generate_answer(
+            question=q.question_text,
+            persona_prompt=persona_prompt,
+            subject_name=data.subject_id,
+            question_type=q.question_type,
+            options=q.options,
+        )
+        grade_result = await _grade(q, answer_text)
+        results.append(AnswerWithId(
+            question_id=q.question_id,
+            answer_text=answer_text,
+            is_correct=grade_result.get("is_correct"),
+            score=grade_result.get("score"),
+            feedback=grade_result.get("feedback"),
+        ))
+    return results
+
+
 # ── GET /simulate/kg-questions ────────────────────────────────────────────────
 
 @router.get("/kg-questions")
