@@ -2,13 +2,12 @@
 
 databases:
   # SQLite (로컬 개발) 또는 PostgreSQL (운영) URL
-  student_platform: "sqlite:///../../../../apps/student-platform/backend/student_platform.db"
-  contents_manager: "sqlite:///../../../../apps/contents-manager/backend/contents_manager.db"
-  # virtual-student-api DB (docker cp virtual-student-api:/app/data/virtual_students.db 로 추출)
-  virtual_student: "sqlite:///../../../../apps/student-platform/virtual-student-api/data/virtual_students.db"
+  student_platform: "sqlite:///student_platform.db"
+  contents_manager: "sqlite:///contents_manager.db"
+  virtual_student: "sqlite:///virtual_students.db"
 
 api:
-  virtual_student_url: "http://localhost:8002"
+  virtual_student_url: "http://localhost:8030"
 
 # 중간 산출물 저장 경로
 output_dir: "../../data/output"

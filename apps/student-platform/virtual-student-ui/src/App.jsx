@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
 import Features from './pages/Features'
 import Simulation from './pages/Simulation'
+import Answers from './pages/Answers'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/students" element={<Students />} />
             <Route path="/features" element={<Features />} />
             <Route path="/simulation" element={<Simulation />} />
+            <Route path="/answers" element={<Answers />} />
           </Routes>
         </main>
       </div>
@@ -51,6 +53,7 @@ function SubNav() {
       <NavLink to="/students">Students</NavLink>
       <NavLink to="/features">Features</NavLink>
       <NavLink to="/simulation">Simulation</NavLink>
+      <NavLink to="/answers">Answers</NavLink>
     </nav>
   )
 }
