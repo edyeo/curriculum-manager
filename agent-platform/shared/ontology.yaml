@@ -4,6 +4,13 @@ description: "공학 커리큘럼 생성을 위한 지식 그래프 온톨로지
 
 # ── Entity 정의 ──────────────────────────────────────────────────
 entities:
+  Subject:
+    description: |
+      커리큘럼 도메인 단위. Seed, Concept, TechStack, System 노드들의 소속 범위를 정의.
+      현재 SQLite에서 kg_nodes.subject_id (1:N FK)로 관리되며,
+      Neo4j에서는 별도 노드로 표현하여 CONTAINS 관계로 연결.
+    depth_range: null
+
   System:
     description: |
       실제로 구축·운영되는 소프트웨어 시스템 또는 플랫폼.
@@ -69,6 +76,15 @@ relations:
     valid_pairs:
       - [Concept, TechStack]
     note: "m:n 허용. 아키텍처 패턴 Concept의 경우 다수의 TechStack과 연결 가능."
+
+  contains:
+    description: "Subject A는 노드 B를 포함한다 (subject 소속 관계)."
+    valid_pairs:
+      - [Subject, Seed]
+      - [Subject, Concept]
+      - [Subject, TechStack]
+      - [Subject, System]
+    note: "Neo4j 전용. SQLite에서는 kg_nodes.subject_id FK로 표현."
 
   prerequisite:
     description: "A를 학습하기 전에 B를 먼저 알아야 한다 (선수지식)."

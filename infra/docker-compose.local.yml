@@ -362,6 +362,27 @@ services:
       timeout: 5s
       retries: 3
 
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5-community
+    container_name: curriculum-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-curriculum_password}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+    ports:
+      - "7474:7474"   # Browser UI
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - curriculum-network
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD:-curriculum_password}", "RETURN 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:
     driver: local
@@ -374,6 +395,8 @@ volumes:
   cm_db:
     driver: local
   virtual_student_db:
+    driver: local
+  neo4j_data:
     driver: local
 
 networks:
