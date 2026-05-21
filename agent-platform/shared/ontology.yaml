@@ -79,12 +79,15 @@ relations:
 
   contains:
     description: "Subject A는 노드 B를 포함한다 (subject 소속 관계)."
+    cardinality: "1:N — 각 노드는 정확히 하나의 Subject에 속한다."
     valid_pairs:
       - [Subject, Seed]
       - [Subject, Concept]
       - [Subject, TechStack]
       - [Subject, System]
-    note: "Neo4j 전용. SQLite에서는 kg_nodes.subject_id FK로 표현."
+    note: |
+      Neo4j 전용. SQLite에서는 kg_nodes.subject_id NOT NULL FK로 강제.
+      서로 다른 Subject 간 동일 노드 공유(M:N)는 향후 별도 메타정보 관리체계로 처리.
 
   prerequisite:
     description: "A를 학습하기 전에 B를 먼저 알아야 한다 (선수지식)."

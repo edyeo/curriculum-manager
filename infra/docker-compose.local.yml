@@ -375,8 +375,6 @@ services:
       - "7687:7687"   # Bolt
     volumes:
       - neo4j_data:/data
-    networks:
-      - curriculum-network
     healthcheck:
       test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD:-curriculum_password}", "RETURN 1"]
       interval: 15s

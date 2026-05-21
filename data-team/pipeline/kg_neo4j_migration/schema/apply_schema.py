@@ -13,11 +13,14 @@ from neo4j import GraphDatabase
 
 def apply_schema(uri: str, user: str, password: str) -> None:
     schema_file = Path(__file__).parent / "schema.cypher"
-    statements = [
-        s.strip()
-        for s in schema_file.read_text().split(";")
-        if s.strip() and not s.strip().startswith("//")
-    ]
+    # 각 statement에서 주석 줄 제거 후 빈 statement 스킵
+    raw_statements = schema_file.read_text().split(";")
+    statements = []
+    for s in raw_statements:
+        lines = [ln for ln in s.splitlines() if not ln.strip().startswith("//")]
+        stmt = "\n".join(lines).strip()
+        if stmt:
+            statements.append(stmt)
 
     driver = GraphDatabase.driver(uri, auth=(user, password))
     try:

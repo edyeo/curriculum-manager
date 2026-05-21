@@ -20,16 +20,18 @@ def fetch_subjects(engine: Engine, subject_id: str | None = None) -> list[dict]:
         params["subj"] = subject_id
 
     with engine.connect() as conn:
-        # subjects 테이블이 있는 경우 직접 조회
         try:
             rows = conn.execute(
-                text(f"SELECT id, name FROM subjects {where}"), params
+                text(f"SELECT id, name, description, status FROM subjects {where}"), params
             ).fetchall()
-            return [{"id": row[0], "name": row[1]} for row in rows]
+            return [
+                {"id": row[0], "name": row[1], "description": row[2] or "", "status": row[3] or ""}
+                for row in rows
+            ]
         except Exception:
             pass
 
-        # subjects 테이블 없음 → kg_nodes.subject_id로 유추 (id=subject_id, name=subject_id)
+        # subjects 테이블 없음 → kg_nodes.subject_id로 유추
         extra = "AND subject_id = :subj" if subject_id else ""
         if subject_id:
             params["subj"] = subject_id
@@ -37,7 +39,7 @@ def fetch_subjects(engine: Engine, subject_id: str | None = None) -> list[dict]:
             text(f"SELECT DISTINCT subject_id FROM kg_nodes WHERE subject_id IS NOT NULL {extra}"),
             params,
         ).fetchall()
-        return [{"id": row[0], "name": row[0]} for row in rows]
+        return [{"id": row[0], "name": row[0], "description": "", "status": ""} for row in rows]
 
 
 def fetch_nodes(

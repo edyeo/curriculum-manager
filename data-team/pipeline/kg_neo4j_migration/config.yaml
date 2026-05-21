@@ -1,7 +1,8 @@
 # KG Neo4j 마이그레이션 파이프라인 설정
 
 databases:
-  contents_manager: "sqlite:///../../../../apps/contents-manager/backend/contents_manager.db"
+  # docker cp contents-manager-backend:/app/cm_db/contents_manager.db ./cm.db
+  contents_manager: "sqlite:///./cm.db"
 
 neo4j:
   uri: "bolt://localhost:7687"

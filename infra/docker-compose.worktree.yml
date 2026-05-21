@@ -49,6 +49,3 @@ services:
       - ${WORKTREE_ROOT}/apps/student-platform/frontend:/app
       - /app/node_modules
 
-  neo4j:
-    volumes:
-      - neo4j_data_${WORKTREE_SUFFIX:-default}:/data
