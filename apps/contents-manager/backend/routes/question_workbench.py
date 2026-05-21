@@ -29,6 +29,7 @@ class QuestionPatch(BaseModel):
     options: Optional[List[dict]] = None
     correct_answer: Optional[str] = None
     explanation: Optional[str] = None
+    difficulty: Optional[str] = None
 
 
 def _job_to_dict(job: GenerationJob) -> dict:
@@ -301,6 +302,8 @@ def update_question(
         qi.correct_answer = body.correct_answer
     if body.explanation is not None:
         qi.explanation = body.explanation
+    if body.difficulty is not None:
+        qi.difficulty = body.difficulty
     db.commit()
     db.refresh(qi)
     return _question_to_dict(qi)
