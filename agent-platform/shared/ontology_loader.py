@@ -36,11 +36,13 @@ class EntityConstraints(BaseModel):
 
 class OntologyEntityDef(BaseModel):
     description: str
-    depth_range: list[int] = Field(default=[1, 3])
+    depth_range: list[int] | None = Field(default=None)
     constraints: EntityConstraints = Field(default_factory=EntityConstraints)
 
     @model_validator(mode="after")
     def validate_depth_range(self) -> "OntologyEntityDef":
+        if self.depth_range is None:
+            return self
         if len(self.depth_range) != 2:
             raise ValueError("depth_range must have exactly 2 elements [min, max]")
         if not (1 <= self.depth_range[0] <= self.depth_range[1] <= 3):
