@@ -93,6 +93,19 @@ export const fetchSimulationRuns = (subjectId) => {
 export const fetchSimulationRun = (runId) =>
   request(`${SIM}/runs/${runId}`)
 
+export const fetchVirtualAnswers = (subjectId) => {
+  const q = subjectId ? `?subject_id=${subjectId}` : ''
+  return request(`/api/virtual-answers${q}`)
+}
+
+export const fetchSimulationResults = (subjectId) => {
+  const q = subjectId ? `?subject_id=${subjectId}` : ''
+  return request(`${SIM}/results${q}`)
+}
+
+export const fetchSimulationResult = (resultId) =>
+  request(`${SIM}/results/${resultId}`)
+
 export const fetchKgQuestions = (subjectId) => {
   const q = subjectId ? `?subject_id=${subjectId}` : ''
   return request(`${SIM}/kg-questions${q}`).then(d => d?.questions ?? [])

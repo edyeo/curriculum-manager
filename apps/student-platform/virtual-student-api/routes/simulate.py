@@ -520,6 +520,66 @@ async def generate_and_grade(data: GenerateAndGradeRequest):
     return results
 
 
+# ── GET /simulate/results ────────────────────────────────────────────────────
+
+@router.get("/results")
+def list_simulation_results(
+    subject_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(SimulationResult, SimulationRun, VirtualStudent)
+        .join(SimulationRun, SimulationResult.run_id == SimulationRun.id)
+        .join(VirtualStudent, SimulationResult.virtual_student_id == VirtualStudent.id)
+    )
+    if subject_id:
+        query = query.filter(SimulationRun.subject_id == subject_id)
+    rows = query.order_by(SimulationResult.created_at.desc()).limit(200).all()
+
+    out = []
+    for result, run, student in rows:
+        answers = result.answers or []
+        first_q = answers[0]["question_text"] if answers else ""
+        scores = [a["score"] for a in answers if a.get("score") is not None]
+        avg_score = round(sum(scores) / len(scores), 3) if scores else None
+        out.append({
+            "result_id": result.id,
+            "run_id": result.run_id,
+            "student_id": student.id,
+            "student_name": student.name,
+            "mode": run.mode,
+            "first_question": first_q,
+            "answer_count": len(answers),
+            "avg_score": avg_score,
+            "created_at": result.created_at.isoformat(),
+        })
+    return out
+
+
+# ── GET /simulate/results/{result_id} ────────────────────────────────────────
+
+@router.get("/results/{result_id}")
+def get_simulation_result(result_id: str, db: Session = Depends(get_db)):
+    result = db.query(SimulationResult).filter(SimulationResult.id == result_id).first()
+    if not result:
+        raise HTTPException(status_code=404, detail="Result not found")
+
+    run = db.query(SimulationRun).filter(SimulationRun.id == result.run_id).first()
+    student = db.query(VirtualStudent).filter(VirtualStudent.id == result.virtual_student_id).first()
+
+    return {
+        "result_id": result.id,
+        "run_id": result.run_id,
+        "student_id": student.id if student else result.virtual_student_id,
+        "student_name": student.name if student else result.virtual_student_id,
+        "mode": run.mode if run else "unknown",
+        "subject_id": run.subject_id if run else "",
+        "answers": result.answers or [],
+        "diagnosis": result.diagnosis,
+        "created_at": result.created_at.isoformat(),
+    }
+
+
 # ── GET /simulate/kg-questions ────────────────────────────────────────────────
 
 @router.get("/kg-questions")
