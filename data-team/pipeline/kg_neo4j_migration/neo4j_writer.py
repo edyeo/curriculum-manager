@@ -21,7 +21,9 @@ def merge_subjects(driver: Driver, subjects: list[dict]) -> int:
     query = """
     UNWIND $rows AS row
     MERGE (n:Subject {id: row.id})
-    SET n.name = row.name
+    SET n.name        = row.name,
+        n.description = row.description,
+        n.status      = row.status
     """
     with driver.session() as session:
         session.run(query, rows=subjects)
@@ -48,7 +50,8 @@ def merge_nodes(driver: Driver, nodes: list[dict], batch_size: int = 500) -> int
             SET n.name        = row.name,
                 n.description = row.description,
                 n.depth       = row.depth,
-                n.metadata    = row.metadata
+                n.metadata    = row.metadata,
+                n.subject_id  = row.subject_id
             """
             for batch in _batches(group, batch_size):
                 session.run(query, rows=batch)
