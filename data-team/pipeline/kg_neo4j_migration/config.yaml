@@ -1,0 +1,20 @@
+# KG Neo4j 마이그레이션 파이프라인 설정
+
+databases:
+  contents_manager: "sqlite:///../../../../apps/contents-manager/backend/contents_manager.db"
+
+neo4j:
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "curriculum_password"
+
+migration:
+  subject_id: null           # null이면 전체 subject 마이그레이션
+  node_types:
+    - Seed
+    - Concept
+    - TechStack
+    - System
+  include_questions: true
+  question_status: "published"   # published만 마이그레이션
+  batch_size: 500
