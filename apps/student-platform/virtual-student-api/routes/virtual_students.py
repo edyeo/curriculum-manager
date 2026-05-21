@@ -20,6 +20,21 @@ from schemas import (
 router = APIRouter(prefix="/api/virtual-students", tags=["virtual-students"])
 
 KG_API_URL = os.getenv("KG_API_URL", "")
+SP_URL = os.getenv("STUDENT_PLATFORM_URL", "")
+
+
+def _sync_to_student_platform(vs_api_id: str, name: str, subject_id: str) -> None:
+    """virtual student 생성 시 student_platform에 동기화. 실패해도 생성은 계속."""
+    if not SP_URL:
+        return
+    try:
+        httpx.post(
+            f"{SP_URL}/virtual-students",
+            json={"vs_api_id": vs_api_id, "name": name, "subject_id": subject_id},
+            timeout=5.0,
+        )
+    except Exception:
+        pass
 
 
 def _validate_subject(subject_id: str):
@@ -110,6 +125,7 @@ def create_virtual_student(data: VirtualStudentCreate, db: Session = Depends(get
 
     db.commit()
     db.refresh(student)
+    _sync_to_student_platform(student.id, student.name, student.subject_id)
     return VirtualStudentDetail(
         id=student.id,
         name=student.name,
