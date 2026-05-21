@@ -15,4 +15,4 @@ ENV PYTHONPATH=/app
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:8010/api/health || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD ["sh", "-c", "python3 migrate.py && exec uvicorn main:app --host 0.0.0.0 --port 8010"]

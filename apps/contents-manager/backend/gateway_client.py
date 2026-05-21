@@ -86,6 +86,7 @@ async def generate_questions_workbench(
     integration_item_id: str = None,
     blueprint_context: str = "",
     question_type: str = "MCQ",
+    count: int = 3,
 ) -> list:
     """EPIC-003: blueprint context를 포함한 문항 생성"""
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
@@ -97,6 +98,7 @@ async def generate_questions_workbench(
                 "integration_item_id": integration_item_id,
                 "blueprint_context": blueprint_context,
                 "question_type": question_type,
+                "count": count,
             },
         )
         r.raise_for_status()

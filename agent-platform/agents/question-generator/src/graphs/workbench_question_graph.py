@@ -45,6 +45,7 @@ class WorkbenchState(TypedDict):
     integration_item_id: Optional[str]
     blueprint_context: str
     question_type: str    # MCQ | OX | short_answer
+    count: int            # 생성할 문제 수
     entity: Optional[Entity]
     siblings: list        # 같은 부모를 가진 형제 노드
     antipatterns: list    # 안티패턴 노드
@@ -127,6 +128,7 @@ def _generate_workbench_questions_node(state: WorkbenchState) -> dict:
     related_context = state["related_context"]
     blueprint_context = state.get("blueprint_context", "")
     question_type = state.get("question_type", "MCQ")
+    count = state.get("count", 3)
 
     llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o"), temperature=0.7)
 
@@ -141,8 +143,8 @@ def _generate_workbench_questions_node(state: WorkbenchState) -> dict:
     bp_section = f"\n\n[Blueprint 컨텍스트]\n{blueprint_context}" if blueprint_context else ""
 
     if question_type == "OX":
-        format_instruction = """생성 요청:
-- 총 3개 OX 문제 (easy 1개, medium 1개, hard 1개)
+        format_instruction = f"""생성 요청:
+- 총 {count}개 OX 문제 (다양한 난이도: easy/medium/hard)
 - 각 문제는 2개 선지: O(참) / X(거짓)
 - 각 선지에 rationale 포함
 
@@ -160,8 +162,8 @@ def _generate_workbench_questions_node(state: WorkbenchState) -> dict:
   }}
 ]"""
     elif question_type == "short_answer":
-        format_instruction = """생성 요청:
-- 총 3개 단답형 문제 (easy 1개, medium 1개, hard 1개)
+        format_instruction = f"""생성 요청:
+- 총 {count}개 단답형 문제 (다양한 난이도: easy/medium/hard)
 - options는 빈 배열 [], correct_answer에 정답 키워드
 
 응답 형식 (JSON array):
@@ -175,8 +177,8 @@ def _generate_workbench_questions_node(state: WorkbenchState) -> dict:
   }}
 ]"""
     else:  # MCQ (default)
-        format_instruction = """생성 요청:
-- 총 3개 MCQ (easy 1개, medium 1개, hard 1개)
+        format_instruction = f"""생성 요청:
+- 총 {count}개 MCQ (다양한 난이도: easy/medium/hard)
 - 각 문제는 4개 선지 (정답 1개 + 오답 3개)
 - 오답은 반드시 위 오답 후보 노드를 참조하여 생성할 것
 - 각 선지에 rationale 포함: "왜 정답인지" 또는 "왜 오답인지" (KG 제약조건 관점)

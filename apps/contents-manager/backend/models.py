@@ -1,4 +1,5 @@
-from sqlalchemy import Boolean, Column, Float, Text, ForeignKey, TIMESTAMP, func
+from datetime import datetime, timezone
+from sqlalchemy import Boolean, Column, Float, Integer, JSON, Text, ForeignKey, TIMESTAMP, func
 from database import Base
 
 
@@ -95,6 +96,33 @@ class QuestionMatrixLink(Base):
     layer               = Column(Text, nullable=False, primary_key=True)
     stage               = Column(Text, nullable=False, primary_key=True)
     integration_item_id = Column(Text, ForeignKey("blueprint_integration_items.id", ondelete="SET NULL"), nullable=True)
+
+
+# ── KG Storage (EPIC-011 migration from JSON files) ───────────────────────────
+
+class KGNode(Base):
+    __tablename__ = "kg_nodes"
+    id = Column(Text, primary_key=True)
+    subject_id = Column(Text, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(Text, nullable=False)          # Seed | Concept | TechStack | System
+    depth = Column(Integer, default=1)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    node_metadata = Column("metadata", JSON, default=dict)
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+    created_by_trigger = Column(Text)
+
+
+class KGEdge(Base):
+    __tablename__ = "kg_edges"
+    id = Column(Text, primary_key=True)
+    subject_id = Column(Text, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id = Column(Text, nullable=False)     # references kg_nodes.id (string, no enforced FK for flexibility)
+    target_id = Column(Text, nullable=False)
+    relation_type = Column(Text, nullable=False)
+    logic_basis = Column(Text)
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+    created_by_trigger = Column(Text)
 
 
 class GenerationJob(Base):

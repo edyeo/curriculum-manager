@@ -8,4 +8,4 @@ COPY . .
 RUN mkdir -p data
 
 EXPOSE 8030
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8030"]
+CMD ["sh", "-c", "python3 migrate.py && exec uvicorn main:app --host 0.0.0.0 --port 8030"]

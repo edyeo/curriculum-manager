@@ -21,9 +21,4 @@ def get_db():
 
 
 def init_db():
-    from models import (  # noqa: F401
-        Student, NodeMastery, StudySession, StudyAttempt,
-        BlueprintCellMastery, BlueprintItemMastery,
-        InterviewSession, InterviewTurn, InterviewDiagnosis,
-    )
-    Base.metadata.create_all(bind=engine)
+    pass  # schema managed by Alembic — runs `alembic upgrade head` at container start

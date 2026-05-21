@@ -8,20 +8,11 @@ from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 from database import get_db
 import json
-from models import Subject, SubjectNode, SubjectEdge, Blueprint, BlueprintIntegrationItem, QuestionItem
+from models import Subject, KGNode, KGEdge, Blueprint, BlueprintIntegrationItem, QuestionItem
 import auth as auth_utils
-import file_db
 import gateway_client
 
 router = APIRouter(prefix="/kg", tags=["kg"])
-
-
-def _owned_node_ids(subject_id: str, db: Session) -> set[str]:
-    return {r.node_id for r in db.query(SubjectNode).filter(SubjectNode.subject_id == subject_id).all()}
-
-
-def _owned_edge_ids(subject_id: str, db: Session) -> set[str]:
-    return {r.edge_id for r in db.query(SubjectEdge).filter(SubjectEdge.subject_id == subject_id).all()}
 
 
 # ── Subjects ──────────────────────────────────────────────────────────────────
@@ -52,19 +43,19 @@ def kg_nodes(
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
-    owned = _owned_node_ids(subject_id, db)
-    nodes = [
-        {
-            "id": n["id"],
-            "type": n.get("type", ""),
-            "name": n.get("name", ""),
-            "depth": n.get("depth", 1),
-            "description": n.get("description", ""),
-        }
-        for n in file_db.read_nodes()
-        if n["id"] in owned
-    ]
-    return {"nodes": nodes}
+    nodes = db.query(KGNode).filter(KGNode.subject_id == subject_id).all()
+    return {
+        "nodes": [
+            {
+                "id": n.id,
+                "type": n.type,
+                "name": n.name,
+                "depth": n.depth,
+                "description": n.description or "",
+            }
+            for n in nodes
+        ]
+    }
 
 
 # ── Edges ─────────────────────────────────────────────────────────────────────
@@ -79,18 +70,18 @@ def kg_edges(
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
 
-    owned = _owned_edge_ids(subject_id, db)
-    edges = [
-        {
-            "id": e["id"],
-            "source_id": e.get("source_id", ""),
-            "target_id": e.get("target_id", ""),
-            "relation": e.get("relation_type", ""),
-        }
-        for e in file_db.read_edges()
-        if e["id"] in owned
-    ]
-    return {"edges": edges}
+    edges = db.query(KGEdge).filter(KGEdge.subject_id == subject_id).all()
+    return {
+        "edges": [
+            {
+                "id": e.id,
+                "source_id": e.source_id,
+                "target_id": e.target_id,
+                "relation": e.relation_type,
+            }
+            for e in edges
+        ]
+    }
 
 
 # ── Questions ─────────────────────────────────────────────────────────────────

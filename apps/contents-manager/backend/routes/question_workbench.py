@@ -19,6 +19,7 @@ class GenerateRequest(BaseModel):
     blueprint_id: Optional[str] = None
     integration_item_id: Optional[str] = None
     question_type: Optional[str] = "MCQ"
+    count: Optional[int] = 3
 
 class SubgraphSearchRequest(BaseModel):
     integration_item_id: str
@@ -28,6 +29,7 @@ class QuestionPatch(BaseModel):
     options: Optional[List[dict]] = None
     correct_answer: Optional[str] = None
     explanation: Optional[str] = None
+    difficulty: Optional[str] = None
 
 
 def _job_to_dict(job: GenerationJob) -> dict:
@@ -75,7 +77,7 @@ def _question_to_dict(q: QuestionItem, db=None) -> dict:
 
 def _run_generation(job_id: str, entity_id: str, blueprint_id: Optional[str],
                     integration_item_id: Optional[str], blueprint_context: str = "",
-                    question_type: str = "MCQ"):
+                    question_type: str = "MCQ", count: int = 3):
     from database import SessionLocal
     db = SessionLocal()
     try:
@@ -90,6 +92,7 @@ def _run_generation(job_id: str, entity_id: str, blueprint_id: Optional[str],
             integration_item_id=integration_item_id,
             blueprint_context=blueprint_context,
             question_type=question_type,
+            count=count,
         ))
 
         job.status = "completed"
@@ -154,6 +157,7 @@ def start_generation(
         body.integration_item_id,
         blueprint_context,
         body.question_type or "MCQ",
+        body.count or 3,
     )
     return {"job_id": job.id, "status": "pending"}
 
@@ -250,6 +254,8 @@ def save_question(
         correct_answer=body["correct_answer"],
         explanation=body.get("explanation"),
         node_snapshot=json.dumps(body.get("node_snapshot")) if body.get("node_snapshot") else None,
+        question_type=body.get("question_type", "MCQ"),
+        difficulty=body.get("difficulty", "medium"),
         status="draft",
     )
     db.add(qi)
@@ -296,6 +302,8 @@ def update_question(
         qi.correct_answer = body.correct_answer
     if body.explanation is not None:
         qi.explanation = body.explanation
+    if body.difficulty is not None:
+        qi.difficulty = body.difficulty
     db.commit()
     db.refresh(qi)
     return _question_to_dict(qi)

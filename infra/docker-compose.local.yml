@@ -236,7 +236,7 @@ services:
     environment:
       GATEWAY_URL: http://api-gateway:9000
       AGENT_DATA_DIR: /app/data
-      CM_DB_PATH: /app/cm_db/contents_manager.db
+      DATABASE_URL: ${CM_DATABASE_URL:-sqlite:////app/cm_db/contents_manager.db}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}

@@ -33,7 +33,9 @@ export default function QuestionBankTab() {
   const load = useCallback(async () => {
     const active = Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
     const res = await listWorkbenchQuestions(active).catch(() => ({ questions: [] }))
-    setQuestions(res.questions || [])
+    const qs = res.questions || []
+    // 기본(전체) 선택 시 archived 제외 — draft + published만 표시
+    setQuestions(filters.status === '' ? qs.filter(q => q.status !== 'archived') : qs)
   }, [filters])
 
   useEffect(() => { load() }, [load])
@@ -53,7 +55,9 @@ export default function QuestionBankTab() {
     setEditDraft({
       question_text: modalQ.question_text,
       options: modalQ.options.map(o => ({ ...o })),
+      correct_answer: modalQ.correct_answer,
       explanation: modalQ.explanation || '',
+      difficulty: modalQ.difficulty || 'medium',
     })
     setEditMode(true)
   }
@@ -64,7 +68,9 @@ export default function QuestionBankTab() {
       const updated = await updateWorkbenchQuestion(modalQ.id, {
         question_text: editDraft.question_text,
         options: editDraft.options,
+        correct_answer: editDraft.correct_answer,
         explanation: editDraft.explanation,
+        difficulty: editDraft.difficulty,
       })
       setQuestions(qs => qs.map(q => q.id === updated.id ? updated : q))
       setModalQ(updated)
@@ -114,7 +120,7 @@ export default function QuestionBankTab() {
           <option value="hard">어려움</option>
         </select>
         <select style={S.sel} value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-          <option value="">전체 상태</option>
+          <option value="">초안 + 출제됨</option>
           <option value="draft">초안</option>
           <option value="published">출제됨</option>
           <option value="archived">보관됨</option>
@@ -235,54 +241,86 @@ function QuestionModal({ question: q, editMode, editDraft, saving, onEditDraftCh
           </section>
 
           {/* 선지 */}
-          <section style={S.section}>
-            <label style={S.label}>선지</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {(editMode ? editDraft.options : q.options).map((opt, i) => {
-                const label = opt.label || String.fromCharCode(65 + i)
-                const isCorrect = opt.is_correct
-                return (
-                  <div key={i} style={{ ...S.optRow, background: isCorrect ? '#f0fdf4' : '#fafafa', borderColor: isCorrect ? '#86efac' : '#e2e8f0' }}>
-                    <span style={{ ...S.optLabel, color: isCorrect ? '#10b981' : '#555' }}>{label}</span>
-                    <div style={{ flex: 1 }}>
+          {(editMode ? editDraft.options : q.options).length > 0 && (
+            <section style={S.section}>
+              <label style={S.label}>선지</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(editMode ? editDraft.options : q.options).map((opt, i) => {
+                  const label = opt.label || String.fromCharCode(65 + i)
+                  const isCorrect = editMode ? opt.is_correct : opt.is_correct
+                  return (
+                    <div key={i} style={{ ...S.optRow, background: isCorrect ? '#f0fdf4' : '#fafafa', borderColor: isCorrect ? '#86efac' : '#e2e8f0' }}>
                       {editMode ? (
-                        <input style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13, width: '100%', boxSizing: 'border-box', color: '#111827', background: '#fff' }}
-                          value={opt.text}
-                          onChange={e => onEditDraftChange(d => {
-                            const opts = d.options.map((o, j) => j === i ? { ...o, text: e.target.value } : o)
-                            return { ...d, options: opts }
+                        <input type="checkbox" checked={!!opt.is_correct} title="정답으로 설정"
+                          onChange={() => onEditDraftChange(d => {
+                            const opts = d.options.map((o, j) => ({ ...o, is_correct: j === i }))
+                            const newCorrect = opts[i].label || String.fromCharCode(65 + i)
+                            return { ...d, options: opts, correct_answer: newCorrect }
                           })} />
-                      ) : (
-                        <span style={{ fontSize: 14, color: '#111827' }}>{opt.text}</span>
-                      )}
-                      {opt.rationale && !editMode && (
-                        <p style={S.rationale}>{opt.rationale}</p>
-                      )}
+                      ) : null}
+                      <span style={{ ...S.optLabel, color: isCorrect ? '#10b981' : '#555' }}>{label}</span>
+                      <div style={{ flex: 1 }}>
+                        {editMode ? (
+                          <input style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13, width: '100%', boxSizing: 'border-box', color: '#111827', background: '#fff' }}
+                            value={opt.text}
+                            onChange={e => onEditDraftChange(d => {
+                              const opts = d.options.map((o, j) => j === i ? { ...o, text: e.target.value } : o)
+                              return { ...d, options: opts }
+                            })} />
+                        ) : (
+                          <span style={{ fontSize: 14, color: '#111827' }}>{opt.text}</span>
+                        )}
+                        {opt.rationale && !editMode && (
+                          <p style={S.rationale}>{opt.rationale}</p>
+                        )}
+                      </div>
+                      {isCorrect && !editMode && <span style={{ color: '#059669', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>정답</span>}
                     </div>
-                    {isCorrect && !editMode && <span style={{ color: '#059669', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>정답</span>}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
-          {/* 정답 · 해설 나란히 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16 }}>
+          {/* 정답 · 난이도 · 해설 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <section style={S.section}>
               <label style={S.label}>정답</label>
-              <span style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{q.correct_answer}</span>
+              {editMode ? (
+                <input style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 14, width: '100%', boxSizing: 'border-box', color: '#111827', background: '#fff' }}
+                  value={editDraft.correct_answer}
+                  onChange={e => onEditDraftChange(d => ({ ...d, correct_answer: e.target.value }))} />
+              ) : (
+                <span style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{q.correct_answer}</span>
+              )}
             </section>
             <section style={S.section}>
-              <label style={S.label}>해설</label>
+              <label style={S.label}>난이도</label>
               {editMode ? (
-                <textarea style={S.textarea} rows={3}
-                  value={editDraft.explanation}
-                  onChange={e => onEditDraftChange(d => ({ ...d, explanation: e.target.value }))} />
+                <select style={{ padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13, color: '#111827', background: '#fff' }}
+                  value={editDraft.difficulty}
+                  onChange={e => onEditDraftChange(d => ({ ...d, difficulty: e.target.value }))}>
+                  <option value="easy">쉬움</option>
+                  <option value="medium">보통</option>
+                  <option value="hard">어려움</option>
+                </select>
               ) : (
-                <p style={{ ...S.body, color: '#555' }}>{q.explanation || '—'}</p>
+                <span style={{ ...S.chip, background: DIFF_COLOR[q.difficulty] + '33', color: DIFF_COLOR[q.difficulty] }}>
+                  {DIFF_LABEL[q.difficulty] || q.difficulty}
+                </span>
               )}
             </section>
           </div>
+          <section style={S.section}>
+            <label style={S.label}>해설</label>
+            {editMode ? (
+              <textarea style={S.textarea} rows={3}
+                value={editDraft.explanation}
+                onChange={e => onEditDraftChange(d => ({ ...d, explanation: e.target.value }))} />
+            ) : (
+              <p style={{ ...S.body, color: '#555' }}>{q.explanation || '—'}</p>
+            )}
+          </section>
 
           {/* 메타 */}
           <section style={S.section}>
