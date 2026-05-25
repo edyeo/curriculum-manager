@@ -18,6 +18,9 @@ case "$AGENT" in
   grader)
     exec uvicorn apps.grader.main:app --host 0.0.0.0 --port ${PORT:-8005}
     ;;
+  virtual-student)
+    exec uvicorn apps.virtual_student.main:app --host 0.0.0.0 --port ${PORT:-8006}
+    ;;
   *)
     echo "Unknown AGENT: $AGENT"
     exit 1

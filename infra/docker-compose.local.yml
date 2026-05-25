@@ -196,6 +196,30 @@ services:
       timeout: 5s
       retries: 3
 
+  # Virtual Student Agent
+  virtual-student:
+    build:
+      context: ../agent-platform
+      dockerfile: Dockerfile
+      args:
+        AGENT: virtual-student
+    container_name: virtual-student
+    environment:
+      AGENT: virtual-student
+      PORT: 8006
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8006:8006"
+    volumes:
+      - ../agent-platform/agents/virtual-student:/app/agents/virtual-student
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # API Gateway
   gateway:
     build:
@@ -332,12 +356,13 @@ services:
       KG_SERVICE_TOKEN: ${KG_SERVICE_TOKEN:-kg-service-secret}
       STUDENT_PLATFORM_URL: http://student-platform-backend:8020
       GATEWAY_URL: http://api-gateway:9000
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      VIRTUAL_STUDENT_AGENT_URL: http://virtual-student:8006
     ports:
       - "8030:8030"
     depends_on:
       - contents-manager-backend
       - student-platform-backend
+      - virtual-student
     volumes:
       - virtual_student_db:/app/data
     healthcheck:
