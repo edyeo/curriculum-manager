@@ -125,6 +125,52 @@ class KGEdge(Base):
     created_by_trigger = Column(Text)
 
 
+# ── EPIC-015: KG Ingestion Review ─────────────────────────────────────────────
+
+class IngestionSource(Base):
+    __tablename__ = "ingestion_sources"
+    id = Column(Text, primary_key=True)
+    source_type = Column(Text, nullable=False)        # file | url | text
+    source_summary = Column(Text)                     # 표시용 미리보기
+    raw_text = Column(Text)                           # dry-run / parse 재실행용
+    subject_id = Column(Text, ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True)
+    status = Column(Text, default="saved")            # saved | pending | approved | rejected
+    extracted_node_count = Column(Integer, default=0)
+    extracted_edge_count = Column(Integer, default=0)
+    extraction_notes = Column(Text)
+    created_by = Column(Text, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+
+
+class IngestionPendingNode(Base):
+    __tablename__ = "ingestion_pending_nodes"
+    id = Column(Text, primary_key=True)
+    session_id = Column(Text, ForeignKey("ingestion_sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(Text, nullable=False)
+    type = Column(Text, nullable=False)
+    depth = Column(Integer, default=1)
+    description = Column(Text)
+    source_excerpt = Column(Text)
+    db_exists = Column(Boolean, default=False)
+    matched_node_id = Column(Text)
+    decision = Column(Text, default="add")            # add | skip
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+
+
+class IngestionPendingEdge(Base):
+    __tablename__ = "ingestion_pending_edges"
+    id = Column(Text, primary_key=True)
+    session_id = Column(Text, ForeignKey("ingestion_sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_name = Column(Text, nullable=False)
+    target_name = Column(Text, nullable=False)
+    relation = Column(Text, nullable=False)
+    basis = Column(Text)
+    source_excerpt = Column(Text)
+    db_exists = Column(Boolean, default=False)
+    decision = Column(Text, default="add")            # add | skip
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+
+
 class GenerationJob(Base):
     __tablename__ = "generation_jobs"
     id = Column(Text, primary_key=True)
