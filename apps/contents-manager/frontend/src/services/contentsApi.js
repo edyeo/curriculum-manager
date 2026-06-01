@@ -154,6 +154,44 @@ export const unpublishWorkbenchQuestion = (id) =>
 export const archiveWorkbenchQuestion = (id) =>
   fetch(`${BASE}/question-workbench/questions/${id}/archive`, { method: 'POST', headers: headers() }).then(handle)
 
+// ── EPIC-015: Ingestion Review ────────────────────────────────────────────────
+export const saveIngestionSource = (sourceType, source, subjectId = null) =>
+  fetch(`${BASE}/ingestion/sources`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ source_type: sourceType, source, subject_id: subjectId || undefined }),
+  }).then(handle)
+
+export const saveIngestionSourceUpload = (file, subjectId = null) => {
+  const form = new FormData()
+  form.append('file', file)
+  if (subjectId) form.append('subject_id', subjectId)
+  return fetch(`${BASE}/ingestion/sources/upload`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('cm_token') || ''}` },
+    body: form,
+  }).then(handle)
+}
+
+export const listIngestionSources = () =>
+  fetch(`${BASE}/ingestion/sources`, { headers: headers() }).then(handle)
+
+export const dryRunIngestionSource = (sessionId) =>
+  fetch(`${BASE}/ingestion/sources/${sessionId}/dry-run`, { method: 'POST', headers: headers() }).then(handle)
+
+export const parseIngestionSource = (sessionId) =>
+  fetch(`${BASE}/ingestion/sources/${sessionId}/parse`, { method: 'POST', headers: headers() }).then(handle)
+
+export const getIngestionAudit = (sessionId = null) => {
+  const qs = sessionId ? `?session_id=${sessionId}` : ''
+  return fetch(`${BASE}/ingestion/audit${qs}`, { headers: headers() }).then(handle)
+}
+
+export const approveIngestionSource = (sessionId) =>
+  fetch(`${BASE}/ingestion/sources/${sessionId}/approve`, { method: 'POST', headers: headers() }).then(handle)
+
+export const rejectIngestionSource = (sessionId) =>
+  fetch(`${BASE}/ingestion/sources/${sessionId}/reject`, { method: 'PATCH', headers: headers() }).then(handle)
+
 // ── EPIC-009: Knowledge Ingestion ─────────────────────────────────────────────
 export const runIngestion = (sourceType, source, dryRun = false, subjectId = null) =>
   fetch(`${BASE}/ingestion/run`, {
