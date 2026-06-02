@@ -1,0 +1,20 @@
+# BKT 학습 파이프라인 설정
+# subject는 단일 고정 — 실제 UUID로 교체 필요
+subject_id: null
+
+databases:
+  # 실행 위치(ml-team/bkt/)로부터의 상대경로 (Python에서 __file__ 기준으로 해석)
+  student_platform: "sqlite:///../../apps/student-platform/backend/student_platform.db"
+  virtual_student:  "sqlite:///../../apps/student-platform/virtual-student-api/data/virtual_students.db"
+
+output_dir: "../../.data/ml_artifact/bkt"
+
+bkt:
+  min_responses_per_node: 30   # 미달 노드는 default_params 사용
+  num_fits: 5                  # pyBKT EM 재시작 횟수 (local optima 탈출)
+  seed: 42
+  default_params:
+    p_l0: 0.3
+    p_t:  0.1
+    p_g:  0.2
+    p_s:  0.1

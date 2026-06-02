@@ -111,10 +111,10 @@ def insert_study_sessions(engine: Engine, rows: Sequence[dict]) -> int:
         conn.execute(
             text("""
                 INSERT INTO virtual_study_sessions
-                    (student_id, question_id, node_id, subject_id, user_answer,
+                    (student_id, question_id, node_id, subject_id, run_id, user_answer,
                      is_correct, score, feedback, time_taken_seconds, created_at)
                 VALUES
-                    (:student_id, :question_id, :node_id, :subject_id, :user_answer,
+                    (:student_id, :question_id, :node_id, :subject_id, :run_id, :user_answer,
                      :is_correct, :score, :feedback, :time_taken_seconds, :created_at)
             """),
             list(rows),

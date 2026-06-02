@@ -52,5 +52,9 @@ data-team/data/output/*
 !data-team/data/raw/.gitkeep
 !data-team/data/output/.gitkeep
 
+# ML/파이프라인 산출물 (모델 파일, 덤프 데이터)
+.data/**/*
+!.data/**/.gitkeep
+
 # Worktree 전용 (경로가 워크트리마다 다름 — worktree-up.sh 가 자동 관리)
 agent-platform/infra/docker-compose.worktree.yml

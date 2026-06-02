@@ -11,7 +11,7 @@ api:
   virtual_student_url: "http://localhost:8002"
 
 # 중간 산출물 저장 경로
-output_dir: "../../data/output"
+output_dir: "../../../.data/student_answer_generation"
 
 simulation:
   max_students: 20                   # 한 번 실행 최대 학생 수

@@ -124,6 +124,46 @@ def _get_prior_knowledge_level(feature_values: list) -> float:
     return 0.5
 
 
+def _build_persona_dict(feature_values: list) -> dict:
+    return {fv.feature_key: fv.value for fv in feature_values}
+
+
+def _update_feature_value(db: Session, student_id: str, feature_key: str, value: str) -> None:
+    record = db.query(VirtualStudentFeatureValue).filter_by(
+        virtual_student_id=student_id,
+        feature_key=feature_key,
+    ).first()
+    if record:
+        record.value = value
+    else:
+        db.add(VirtualStudentFeatureValue(
+            virtual_student_id=student_id,
+            feature_key=feature_key,
+            value=value,
+        ))
+
+
+# ── 페르소나 조건부 mastery write-back ────────────────────────────────────────
+
+def _compute_learning_rate(persona: dict) -> float:
+    pace_map  = {"빠름": 1.4, "보통": 1.0, "느림": 0.6}
+    depth_map = {"깊음": 1.2, "보통": 1.0, "얕음": 0.8}
+
+    pace_mult  = pace_map.get(persona.get("learning_pace", "보통"), 1.0)
+    depth_mult = depth_map.get(persona.get("conceptual_depth", "보통"), 1.0)
+
+    prior = float(persona.get("prior_knowledge_level", 0.5))
+    ceiling_factor = 1.0 - prior * 0.5
+
+    return 0.3 * pace_mult * depth_mult * ceiling_factor
+
+
+def _write_back_mastery(old_prior: float, session_score: float, persona: dict) -> float:
+    lr = _compute_learning_rate(persona)
+    delta = (session_score - old_prior) * lr
+    return round(min(1.0, max(0.0, old_prior + delta)), 4)
+
+
 # ── Simple Answer (Mode 1) ────────────────────────────────────────────────────
 
 async def _grade(
@@ -368,6 +408,14 @@ async def create_simulation_run(data: SimulationRunRequest, db: Session = Depend
             ]
             answers = [a.model_dump() for a in answer_outs]
             diagnosis = None
+
+            scores = [a["score"] for a in answers if a.get("score") is not None]
+            if scores:
+                persona_dict = _build_persona_dict(fvs)
+                new_prior = _write_back_mastery(
+                    prior_knowledge, sum(scores) / len(scores), persona_dict
+                )
+                _update_feature_value(db, student.id, "prior_knowledge_level", str(new_prior))
         else:
             # interview mode: prior_knowledge_level → 전 노드 uniform initial mastery
             interview_data = await _interview_run(
