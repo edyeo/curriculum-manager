@@ -14,3 +14,5 @@ pyyaml>=6.0
 beautifulsoup4>=4.12
 pymupdf>=1.24
 python-multipart>=0.0.9
+neo4j>=5.0
+pytest>=8.0

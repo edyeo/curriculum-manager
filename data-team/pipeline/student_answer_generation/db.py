@@ -95,7 +95,7 @@ def fetch_answered_question_ids(engine: Engine, student_id: int) -> set[str]:
     """가상 학생이 이미 답변한 question_id 집합 반환."""
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT DISTINCT question_id FROM virtual_study_sessions WHERE student_id = :sid"),
+            text("SELECT DISTINCT question_id FROM virtual_student_study_log WHERE student_id = :sid"),
             {"sid": student_id},
         ).fetchall()
     return {row[0] for row in rows}
@@ -103,18 +103,73 @@ def fetch_answered_question_ids(engine: Engine, student_id: int) -> set[str]:
 
 # ── Load ──────────────────────────────────────────────────────────────────────
 
+def get_current_mastery(engine: Engine, student_id: int, node_id: str) -> float | None:
+    """virtual_node_mastery 현재 mastery_score 조회. 없으면 None 반환."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT mastery_score FROM virtual_node_mastery "
+                "WHERE student_id = :sid AND node_id = :nid"
+            ),
+            {"sid": student_id, "nid": node_id},
+        ).fetchone()
+    return row[0] if row else None
+
+
+def insert_answer_session(
+    engine: Engine,
+    session_id: str,
+    student_id: int,
+    node_id: str,
+    subject_id: str,
+    mastery_before: float | None,
+) -> None:
+    """virtual_student_study_session_info INSERT — 세션 시작 시 mastery_before 기록."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO virtual_student_study_session_info
+                    (session_id, student_id, node_id, subject_id, mastery_before, created_at)
+                VALUES (:session_id, :sid, :nid, :subj, :mb, :now)
+            """),
+            {
+                "session_id": session_id,
+                "sid": student_id,
+                "nid": node_id,
+                "subj": subject_id,
+                "mb": mastery_before,
+                "now": datetime.utcnow(),
+            },
+        )
+
+
+def update_answer_session_mastery_after(
+    engine: Engine,
+    session_id: str,
+    mastery_after: float,
+) -> None:
+    """virtual_student_study_session_info mastery_after 업데이트 — 세션 종료 후 호출."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE virtual_student_study_session_info SET mastery_after = :ma WHERE session_id = :sid"
+            ),
+            {"ma": mastery_after, "sid": session_id},
+        )
+
+
 def insert_study_sessions(engine: Engine, rows: Sequence[dict]) -> int:
-    """virtual_study_sessions 벌크 INSERT."""
+    """virtual_student_study_log 벌크 INSERT (session_id 포함)."""
     if not rows:
         return 0
     with engine.begin() as conn:
         conn.execute(
             text("""
-                INSERT INTO virtual_study_sessions
-                    (student_id, question_id, node_id, subject_id, user_answer,
+                INSERT INTO virtual_student_study_log
+                    (student_id, session_id, question_id, node_id, subject_id, user_answer,
                      is_correct, score, feedback, time_taken_seconds, created_at)
                 VALUES
-                    (:student_id, :question_id, :node_id, :subject_id, :user_answer,
+                    (:student_id, :session_id, :question_id, :node_id, :subject_id, :user_answer,
                      :is_correct, :score, :feedback, :time_taken_seconds, :created_at)
             """),
             list(rows),
@@ -129,8 +184,8 @@ def upsert_node_mastery(
     subject_id: str,
     is_correct: bool,
     score: float,
-) -> None:
-    """virtual_node_mastery EMA 업데이트."""
+) -> float:
+    """virtual_node_mastery EMA 업데이트. 업데이트 후 mastery_score 반환."""
     with engine.begin() as conn:
         row = conn.execute(
             text(
@@ -157,7 +212,7 @@ def upsert_node_mastery(
                  "sid": student_id, "nid": node_id, "now": now},
             )
         else:
-            initial = min(1.0, 0.5 + 0.3 * score) if is_correct else max(0.0, 0.5 - 0.1)
+            new_mastery = min(1.0, 0.5 + 0.3 * score) if is_correct else max(0.0, 0.5 - 0.1)
             conn.execute(
                 text("""
                     INSERT INTO virtual_node_mastery
@@ -165,5 +220,6 @@ def upsert_node_mastery(
                     VALUES (:sid, :nid, :subj, :ms, 1, :now)
                 """),
                 {"sid": student_id, "nid": node_id, "subj": subject_id,
-                 "ms": round(initial, 4), "now": now},
+                 "ms": round(new_mastery, 4), "now": now},
             )
+    return round(new_mastery, 4)

@@ -54,3 +54,6 @@ data-team/data/output/*
 
 # Worktree 전용 (경로가 워크트리마다 다름 — worktree-up.sh 가 자동 관리)
 agent-platform/infra/docker-compose.worktree.yml
+
+# 파이프라인 로컬 DB 복사본 (산출물)
+data-team/pipeline/student_answer_generation/*.db

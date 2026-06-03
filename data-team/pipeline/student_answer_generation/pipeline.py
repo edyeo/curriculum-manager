@@ -7,6 +7,7 @@ Usage:
   python pipeline.py --load-and-save <file>       # 덤프 파일 → DB 적재
 """
 import argparse
+import asyncio
 import json
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -75,68 +76,110 @@ def select_targets(cfg: dict, students: list, questions: list) -> list[dict]:
 
 # ── Step 4: 가상 답변 생성 + 파일 덤프 ────────────────────────────────────────
 
-def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
+def _chunk(seq: list, size: int) -> list[list]:
+    return [seq[i:i + size] for i in range(0, len(seq), size)]
+
+
+async def _process_chunk(
+    client: httpx.AsyncClient,
+    sem: asyncio.Semaphore,
+    student: dict,
+    questions: list,
+    subject_id: str,
+    label: str,
+) -> tuple[list[dict], bool]:
+    """단일 (학생 × 청크) 요청 처리. (answers, success) 반환."""
+    persona = build_persona(student)
+    payload = {
+        "name": student["name"],
+        "persona": persona,
+        "subject_id": subject_id,
+        "questions": [
+            {
+                "question_id": q["id"],
+                "question_text": q["question_text"],
+                "question_type": q["question_type"],
+                "options": q.get("options") or [],
+                "correct_answer": q.get("correct_answer") or "",
+            }
+            for q in questions
+        ],
+    }
+
+    async with sem:
+        try:
+            resp = await client.post("/api/simulate/generate-and-grade", json=payload)
+            resp.raise_for_status()
+            answers = resp.json()
+        except Exception as e:
+            print(f"  {label} 실패: {str(e)[:80]}")
+            return [], False
+
+    rows = []
+    for a, q in zip(answers, questions):
+        rows.append({
+            "student_id": student["id"],
+            "question_id": q["id"],
+            "node_id": q["entity_id"],
+            "subject_id": subject_id,
+            "question_text": q["question_text"],
+            "question_type": q["question_type"],
+            "correct_answer": q.get("correct_answer", ""),
+            "user_answer": a.get("answer_text", ""),
+            "is_correct": a.get("is_correct"),
+            "score": a.get("score"),
+            "feedback": a.get("feedback", ""),
+            "time_taken_seconds": 0,
+        })
+    print(f"  {label} 완료 ({len(rows)}개)")
+    return rows, True
+
+
+async def _generate_async(targets: list, subject_id: str, cfg: dict) -> tuple[list[dict], dict]:
     vs_url = cfg["api"]["virtual_student_url"]
-    timeout = cfg["simulation"].get("request_timeout", 60)
-    output_dir = Path(__file__).parent / cfg.get("output_dir", "../../data/output")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    timeout = cfg["simulation"].get("request_timeout", 120)
+    chunk_size = cfg["simulation"].get("chunk_size", 10)
+    concurrency = cfg["simulation"].get("concurrency", 5)
+
+    # (학생, 청크) 작업 목록 생성
+    work: list[tuple[dict, list, str]] = []
+    for target in targets:
+        student = target["student"]
+        chunks = _chunk(target["questions"], chunk_size)
+        for ci, chunk in enumerate(chunks, 1):
+            label = f"[{student['name']} {ci}/{len(chunks)}]"
+            work.append((student, chunk, label))
+
+    total_q = sum(len(t["questions"]) for t in targets)
+    print(f"[4/5] 가상 답변 생성 시작 ({len(targets)}명 / {len(work)}개 청크 / {total_q}문제, 동시 {concurrency})")
 
     stats = {"students": len(targets), "total_targets": 0, "success": 0, "failed": 0}
     all_answers: list[dict] = []
+    sem = asyncio.Semaphore(concurrency)
 
-    total_q = sum(len(t["questions"]) for t in targets)
-    print(f"[4/5] 가상 답변 생성 시작 ({len(targets)}명 × 최대 {total_q}문제)")
+    async with httpx.AsyncClient(base_url=vs_url, timeout=timeout) as client:
+        coros = [
+            _process_chunk(client, sem, student, chunk, subject_id, label)
+            for student, chunk, label in work
+        ]
+        results = await asyncio.gather(*coros)
 
-    with httpx.Client(base_url=vs_url, timeout=timeout) as client:
-        for i, target in enumerate(targets, 1):
-            student = target["student"]
-            questions = target["questions"]
-            persona = build_persona(student)
+    for rows, ok in results:
+        if ok:
+            stats["success"] += 1
+            stats["total_targets"] += len(rows)
+            all_answers.extend(rows)
+        else:
+            stats["failed"] += 1
 
-            print(f"  ({i}/{len(targets)}) {student['name']} [{len(questions)}문제] ...", end=" ", flush=True)
+    return all_answers, stats
 
-            payload = {
-                "name": student["name"],
-                "persona": persona,
-                "subject_id": subject_id,
-                "questions": [
-                    {
-                        "question_id": q["id"],
-                        "question_text": q["question_text"],
-                        "question_type": q["question_type"],
-                        "options": q.get("options") or [],
-                        "correct_answer": q.get("correct_answer") or "",
-                    }
-                    for q in questions
-                ],
-            }
 
-            try:
-                resp = client.post("/api/simulate/generate-and-grade", json=payload)
-                resp.raise_for_status()
-                answers = resp.json()
+def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
+    output_dir = Path(__file__).parent / cfg.get("output_dir", "../../data/output")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-                for a, q in zip(answers, questions):
-                    all_answers.append({
-                        "student_id": student["id"],
-                        "question_id": q["id"],
-                        "node_id": q["entity_id"],
-                        "subject_id": subject_id,
-                        "question_text": q["question_text"],
-                        "question_type": q["question_type"],
-                        "correct_answer": q.get("correct_answer", ""),
-                        "user_answer": a.get("answer_text", ""),
-                        "is_correct": a.get("is_correct"),
-                        "score": a.get("score"),
-                        "feedback": a.get("feedback", ""),
-                        "time_taken_seconds": 0,
-                    })
-                stats["success"] += 1
-                stats["total_targets"] += len(answers)
-                print(f"완료 ({len(answers)}개)")
-            except Exception as e:
-                print(f"실패: {str(e)[:80]}")
-                stats["failed"] += 1
+    all_answers, stats = asyncio.run(_generate_async(targets, subject_id, cfg))
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     out_file = output_dir / f"student_answers_{subject_id[:8]}_{ts}.json"
@@ -154,6 +197,15 @@ def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
 # ── Step 5: 덤프 파일 → DB 직접 적재 ─────────────────────────────────────────
 
 def load_to_db(cfg: dict, dump_file: Path) -> dict:
+    """덤프 파일 → DB 적재.
+
+    (student, node) 그룹별로:
+      ① mastery_before 캡처 → virtual_student_study_session_info INSERT
+      ② virtual_student_study_log INSERT (session_id FK 포함)
+      ③ mastery upsert (EMA) → mastery_after → virtual_student_study_session_info UPDATE
+    """
+    import uuid as uuid_mod
+
     data = json.loads(dump_file.read_text())
     answers = data.get("answers", [])
 
@@ -162,32 +214,52 @@ def load_to_db(cfg: dict, dump_file: Path) -> dict:
     sp_engine = dbmod.get_engine(cfg["databases"]["student_platform"])
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    session_rows = [
-        {
-            "student_id": a["student_id"],
-            "question_id": a["question_id"],
-            "node_id": a["node_id"],
-            "subject_id": a["subject_id"],
-            "user_answer": a.get("user_answer", ""),
-            "is_correct": a.get("is_correct"),
-            "score": a.get("score"),
-            "feedback": a.get("feedback", ""),
-            "time_taken_seconds": a.get("time_taken_seconds", 0),
-            "created_at": now,
-        }
-        for a in answers
-    ]
-    inserted = dbmod.insert_study_sessions(sp_engine, session_rows)
-    print(f"  virtual_study_sessions: {inserted}개 INSERT")
-
     grouped: dict[tuple, list] = defaultdict(list)
     for a in answers:
         grouped[(a["student_id"], a["node_id"], a["subject_id"])].append(a)
 
-    mastery_updates = 0
+    total_inserted = 0
+    total_mastery_updates = 0
+    total_sessions = 0
+
     for (student_id, node_id, subject_id), group in grouped.items():
+        # ① mastery_before 캡처 + virtual_student_study_session_info 생성
+        mastery_before = dbmod.get_current_mastery(sp_engine, student_id, node_id)
+        session_id = str(uuid_mod.uuid4())
+        dbmod.insert_answer_session(
+            sp_engine,
+            session_id=session_id,
+            student_id=student_id,
+            node_id=node_id,
+            subject_id=subject_id,
+            mastery_before=mastery_before,
+        )
+        total_sessions += 1
+
+        # ② virtual_student_study_log INSERT (session_id FK 포함)
+        session_rows = [
+            {
+                "student_id": student_id,
+                "session_id": session_id,
+                "question_id": a["question_id"],
+                "node_id": node_id,
+                "subject_id": subject_id,
+                "user_answer": a.get("user_answer", ""),
+                "is_correct": a.get("is_correct"),
+                "score": a.get("score"),
+                "feedback": a.get("feedback", ""),
+                "time_taken_seconds": a.get("time_taken_seconds", 0),
+                "created_at": now,
+            }
+            for a in group
+        ]
+        inserted = dbmod.insert_study_sessions(sp_engine, session_rows)
+        total_inserted += inserted
+
+        # ③ mastery upsert → mastery_after 확보
+        mastery_after = None
         for a in group:
-            dbmod.upsert_node_mastery(
+            mastery_after = dbmod.upsert_node_mastery(
                 sp_engine,
                 student_id=student_id,
                 node_id=node_id,
@@ -195,10 +267,20 @@ def load_to_db(cfg: dict, dump_file: Path) -> dict:
                 is_correct=bool(a.get("is_correct")),
                 score=float(a.get("score") or 0.0),
             )
-            mastery_updates += 1
+            total_mastery_updates += 1
 
-    print(f"  virtual_node_mastery: {mastery_updates}개 UPSERT")
-    return {"inserted": inserted, "mastery_updates": mastery_updates}
+        # virtual_student_study_session_info mastery_after 기록
+        if mastery_after is not None:
+            dbmod.update_answer_session_mastery_after(sp_engine, session_id, mastery_after)
+
+    print(f"  virtual_student_study_session_info: {total_sessions}개 INSERT")
+    print(f"  virtual_student_study_log:          {total_inserted}개 INSERT")
+    print(f"  virtual_node_mastery:    {total_mastery_updates}개 UPSERT")
+    return {
+        "sessions": total_sessions,
+        "inserted": total_inserted,
+        "mastery_updates": total_mastery_updates,
+    }
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -215,7 +297,7 @@ def main():
 
     if args.load_and_save:
         result = load_to_db(cfg, Path(args.load_and_save))
-        print(f"\n완료: {result['inserted']}개 세션 / {result['mastery_updates']}개 숙련도 갱신")
+        print(f"\n완료: {result['sessions']}개 answer_session / {result['inserted']}개 study_session / {result['mastery_updates']}개 숙련도 갱신")
         return
 
     if not args.subject_id:

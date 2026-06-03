@@ -1,14 +1,13 @@
 # 가상 학생 답변 합성 데이터 파이프라인 설정
 
 databases:
-  # SQLite (로컬 개발) 또는 PostgreSQL (운영) URL
-  student_platform: "sqlite:///../../../../apps/student-platform/backend/student_platform.db"
-  contents_manager: "sqlite:///../../../../apps/contents-manager/backend/contents_manager.db"
-  # virtual-student-api DB (docker cp virtual-student-api:/app/data/virtual_students.db 로 추출)
-  virtual_student: "sqlite:///../../../../apps/student-platform/virtual-student-api/data/virtual_students.db"
+  # docker cp로 추출한 로컬 복사본
+  student_platform: "sqlite:///./sp.db"
+  contents_manager: "sqlite:///./cm.db"
+  virtual_student: "sqlite:///./vs.db"
 
 api:
-  virtual_student_url: "http://localhost:8002"
+  virtual_student_url: "http://localhost:8030"
 
 # 중간 산출물 저장 경로
 output_dir: "../../data/output"
@@ -20,7 +19,9 @@ simulation:
     - "MCQ"
     - "OX"
     - "short_answer"
-  request_timeout: 60                # Virtual Student API 요청 타임아웃(초)
+  request_timeout: 120               # Virtual Student API 요청 타임아웃(초, 청크 단위)
+  chunk_size: 10                     # 한 요청에 보낼 문제 수 (학생당 분할)
+  concurrency: 5                     # 동시 처리할 요청 수
 
 persona:
   mastery_to_knowledge_level: true   # avg(node_mastery) → prior_knowledge_level 매핑
