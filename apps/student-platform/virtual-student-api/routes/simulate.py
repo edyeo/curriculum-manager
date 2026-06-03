@@ -1,16 +1,13 @@
 """Simulation routes — 가상 학생 답변 생성 및 결과 저장."""
-import json
 import os
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from openai import OpenAI
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 import kg_client
-import persona_agent
 from database import get_db
 from models import SimulationResult, SimulationRun, VirtualStudent, VirtualStudentFeatureValue
 
@@ -20,15 +17,7 @@ STUDENT_PLATFORM_URL = os.getenv("STUDENT_PLATFORM_URL", "http://localhost:8020"
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://localhost:9000")
 KG_SERVICE_TOKEN = os.getenv("KG_SERVICE_TOKEN", "kg-service-secret")
 KG_API_URL = os.getenv("KG_API_URL", "http://localhost:8010")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
-_openai_client: Optional[OpenAI] = None
-
-
-def _get_openai():
-    global _openai_client
-    if _openai_client is None:
-        _openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    return _openai_client
+VIRTUAL_STUDENT_AGENT_URL = os.getenv("VIRTUAL_STUDENT_AGENT_URL", "http://localhost:8006")
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -103,6 +92,28 @@ def _build_persona_prompt(student: VirtualStudent, feature_values: list) -> str:
     return "\n".join(lines)
 
 
+async def _generate_answer(
+    question: str,
+    persona_prompt: str,
+    subject_name: str,
+    question_type: str = "SHORT_ANSWER",
+    options: list | None = None,
+    conversation_history: list[dict] | None = None,
+) -> str:
+    payload = {
+        "question": question,
+        "persona_prompt": persona_prompt,
+        "subject_name": subject_name,
+        "question_type": question_type,
+        "options": options,
+        "conversation_history": conversation_history,
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(f"{VIRTUAL_STUDENT_AGENT_URL}/generate-answer", json=payload)
+        resp.raise_for_status()
+        return resp.json()["answer"]
+
+
 def _get_prior_knowledge_level(feature_values: list) -> float:
     for fv in feature_values:
         if fv.feature_key == "prior_knowledge_level":
@@ -111,6 +122,46 @@ def _get_prior_knowledge_level(feature_values: list) -> float:
             except (ValueError, TypeError):
                 pass
     return 0.5
+
+
+def _build_persona_dict(feature_values: list) -> dict:
+    return {fv.feature_key: fv.value for fv in feature_values}
+
+
+def _update_feature_value(db: Session, student_id: str, feature_key: str, value: str) -> None:
+    record = db.query(VirtualStudentFeatureValue).filter_by(
+        virtual_student_id=student_id,
+        feature_key=feature_key,
+    ).first()
+    if record:
+        record.value = value
+    else:
+        db.add(VirtualStudentFeatureValue(
+            virtual_student_id=student_id,
+            feature_key=feature_key,
+            value=value,
+        ))
+
+
+# ── 페르소나 조건부 mastery write-back ────────────────────────────────────────
+
+def _compute_learning_rate(persona: dict) -> float:
+    pace_map  = {"빠름": 1.4, "보통": 1.0, "느림": 0.6}
+    depth_map = {"깊음": 1.2, "보통": 1.0, "얕음": 0.8}
+
+    pace_mult  = pace_map.get(persona.get("learning_pace", "보통"), 1.0)
+    depth_mult = depth_map.get(persona.get("conceptual_depth", "보통"), 1.0)
+
+    prior = float(persona.get("prior_knowledge_level", 0.5))
+    ceiling_factor = 1.0 - prior * 0.5
+
+    return 0.3 * pace_mult * depth_mult * ceiling_factor
+
+
+def _write_back_mastery(old_prior: float, session_score: float, persona: dict) -> float:
+    lr = _compute_learning_rate(persona)
+    delta = (session_score - old_prior) * lr
+    return round(min(1.0, max(0.0, old_prior + delta)), 4)
 
 
 # ── Simple Answer (Mode 1) ────────────────────────────────────────────────────
@@ -145,7 +196,7 @@ async def _simple_answer_and_grade(
     persona_prompt: str,
     subject_id: str,
 ) -> AnswerOut:
-    answer_text = persona_agent.generate_answer(
+    answer_text = await _generate_answer(
         question=question.question_text,
         persona_prompt=persona_prompt,
         subject_name=subject_id,
@@ -164,7 +215,7 @@ async def _simple_answer_and_grade(
 
 # ── Interview Mode (Mode 2) ───────────────────────────────────────────────────
 # 오케스트레이션: virtual-student-api가 주도
-#   persona_agent  → 학생 답변 생성 (this service)
+#   virtual-student agent → 학생 답변 생성 (http://virtual-student:8006)
 #   /service/*     → 면접관·평가자 역할 (student-platform)
 
 _SVC_HEADERS = lambda: {"X-Service-Token": KG_SERVICE_TOKEN}
@@ -235,8 +286,8 @@ async def _interview_run(
             })
             question = q_resp["question"]
 
-            # 2. 학생: 답변 생성 (persona_agent — this service)
-            answer = persona_agent.generate_answer(
+            # 2. 학생: 답변 생성 (virtual-student agent)
+            answer = await _generate_answer(
                 question=question,
                 persona_prompt=persona_prompt,
                 subject_name=subject_name,
@@ -357,6 +408,14 @@ async def create_simulation_run(data: SimulationRunRequest, db: Session = Depend
             ]
             answers = [a.model_dump() for a in answer_outs]
             diagnosis = None
+
+            scores = [a["score"] for a in answers if a.get("score") is not None]
+            if scores:
+                persona_dict = _build_persona_dict(fvs)
+                new_prior = _write_back_mastery(
+                    prior_knowledge, sum(scores) / len(scores), persona_dict
+                )
+                _update_feature_value(db, student.id, "prior_knowledge_level", str(new_prior))
         else:
             # interview mode: prior_knowledge_level → 전 노드 uniform initial mastery
             interview_data = await _interview_run(
@@ -502,7 +561,7 @@ async def generate_and_grade(data: GenerateAndGradeRequest):
     persona_prompt = _build_persona_prompt_from_dict(data.name, data.persona.model_dump())
     results = []
     for q in data.questions:
-        answer_text = persona_agent.generate_answer(
+        answer_text = await _generate_answer(
             question=q.question_text,
             persona_prompt=persona_prompt,
             subject_name=data.subject_id,
@@ -740,7 +799,7 @@ async def interview_step(session_id: str):
     turn_number = len(state["turns"]) + 1
 
     # 1. 학생 답변
-    answer = persona_agent.generate_answer(
+    answer = await _generate_answer(
         question=question,
         persona_prompt=state["persona"],
         subject_name=state["subject_name"],

@@ -145,6 +145,7 @@ class VirtualStudySession(Base):
     question_id = Column(String, nullable=False)
     node_id = Column(String, nullable=False)
     subject_id = Column(String, nullable=False)
+    run_id = Column(String, nullable=True)   # SimulationRun.id 참조
     user_answer = Column(Text)
     is_correct = Column(Boolean)
     score = Column(Float)
@@ -164,3 +165,21 @@ class VirtualNodeMastery(Base):
     attempt_count = Column(Integer, default=0)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     __table_args__ = (UniqueConstraint("student_id", "node_id", name="uq_vs_node"),)
+
+
+# ── EPIC-015: BKT 모델 파라미터 ───────────────────────────────────────────────
+
+class BktNodeParams(Base):
+    """노드별 BKT 파라미터 — ml-team/bkt 파이프라인이 학습 후 저장."""
+    __tablename__ = "bkt_node_params"
+    id         = Column(Integer, primary_key=True)
+    subject_id = Column(String, nullable=False)
+    node_id    = Column(String, nullable=False)
+    p_l0       = Column(Float, nullable=False)   # prior knowledge
+    p_t        = Column(Float, nullable=False)   # transit (learning rate)
+    p_g        = Column(Float, nullable=False)   # guess
+    p_s        = Column(Float, nullable=False)   # slip
+    n_students  = Column(Integer)
+    n_responses = Column(Integer)
+    trained_at  = Column(DateTime)
+    __table_args__ = (UniqueConstraint("subject_id", "node_id", name="uq_bkt_node"),)

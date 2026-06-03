@@ -8,6 +8,7 @@ Usage:
 """
 import argparse
 import json
+import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,11 +76,14 @@ def select_targets(cfg: dict, students: list, questions: list) -> list[dict]:
 
 # ── Step 4: 가상 답변 생성 + 파일 덤프 ────────────────────────────────────────
 
-def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
+def generate_and_dump(targets: list, subject_id: str, cfg: dict, run_id: str | None = None) -> Path:
     vs_url = cfg["api"]["virtual_student_url"]
     timeout = cfg["simulation"].get("request_timeout", 60)
-    output_dir = Path(__file__).parent / cfg.get("output_dir", "../../data/output")
+    output_dir = Path(__file__).parent / cfg.get("output_dir", "../../../.data/student_answer_generation")
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if run_id is None:
+        run_id = str(uuid.uuid4())
 
     stats = {"students": len(targets), "total_targets": 0, "success": 0, "failed": 0}
     all_answers: list[dict] = []
@@ -122,6 +126,7 @@ def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
                         "question_id": q["id"],
                         "node_id": q["entity_id"],
                         "subject_id": subject_id,
+                        "run_id": run_id,
                         "question_text": q["question_text"],
                         "question_type": q["question_type"],
                         "correct_answer": q.get("correct_answer", ""),
@@ -142,6 +147,7 @@ def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
     out_file = output_dir / f"student_answers_{subject_id[:8]}_{ts}.json"
     out_file.write_text(json.dumps({
         "subject_id": subject_id,
+        "run_id": run_id,
         "generated_at": ts,
         "stats": stats,
         "answers": all_answers,
@@ -168,6 +174,7 @@ def load_to_db(cfg: dict, dump_file: Path) -> dict:
             "question_id": a["question_id"],
             "node_id": a["node_id"],
             "subject_id": a["subject_id"],
+            "run_id": a.get("run_id"),
             "user_answer": a.get("user_answer", ""),
             "is_correct": a.get("is_correct"),
             "score": a.get("score"),

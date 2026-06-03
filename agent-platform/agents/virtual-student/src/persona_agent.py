@@ -74,12 +74,10 @@ def generate_answer(
     )
     answer = response.choices[0].message.content.strip()
 
-    # MCQ: label만 추출 (혹시 설명이 붙어 나올 경우 대비)
     if is_mcq:
         for label in labels:
             if answer.upper().startswith(label.upper()):
                 return label
-        # fallback: 첫 글자가 유효한 label이면 사용
         first = answer[0].upper() if answer else labels[0]
         return first if first in [l.upper() for l in labels] else labels[0]
 
