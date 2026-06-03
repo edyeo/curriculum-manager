@@ -101,14 +101,20 @@ def predict(req: PredictRequest):
         "order_id":   list(range(len(req.responses))),
     })
 
-    result_df = m.predict(data=df)
+    try:
+        result_df = m.predict(data=df)
+    except ValueError as e:
+        if "no matching skills" in str(e):
+            raise HTTPException(
+                status_code=404,
+                detail=f"node_id '{req.node_id}'는 학습된 모델에 없습니다.",
+            )
+        raise
 
-    state_preds = result_df["state_predictions"].tolist()
-    # NaN 방어: pyBKT가 NaN 반환 시 params 기반 단순 추정으로 대체
     params = model_store.get_params(req.node_id)
     state_preds = [
-        (round(float(v), 4) if v == v else params["p_l0"])  # nan check: v == v is False for nan
-        for v in state_preds
+        round(float(v), 4) if (v == v) else params["p_l0"]  # NaN 방어
+        for v in result_df["state_predictions"].tolist()
     ]
 
     return PredictResponse(
