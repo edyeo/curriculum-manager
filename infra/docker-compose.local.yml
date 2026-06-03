@@ -232,6 +232,8 @@ services:
         AGENT: kg-refiner
     container_name: kg-refiner
     environment:
+      AGENT: kg-refiner
+      PORT: 8007
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
       CONTENTS_MANAGER_URL: http://contents-manager-backend:8010
@@ -240,14 +242,21 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-curriculum_password}
       STUDENT_PLATFORM_DB_URL: sqlite:////app/db/student_platform.db
       PYTHONPATH: /app
-    entrypoint: ["python", "/app/agents/kg-refiner/cli.py"]
+    ports:
+      - "8007:8007"
     volumes:
       - ../agent-platform/agents/kg-refiner:/app/agents/kg-refiner
+      - ../agent-platform/apps/kg_refiner:/app/apps/kg_refiner
       - ../agent-platform/shared:/app/shared
       - student_db:/app/db
     depends_on:
       - contents-manager-backend
       - neo4j
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # API Gateway
   gateway:

@@ -1,16 +1,26 @@
-"""T_STRUCTURE — 서브그래프 컨텍스트 주입 후 구조 검토·개선 제안 LangGraph."""
+"""T_STRUCTURE — 이상 노드 검출 → 검출 노드 중심 서브그래프 도출 →
+컨텍스트 주입 후 재정의(수정) 제안 LangGraph.
+
+흐름:
+  ① detect_targets : node-resolution tool로 이상/무변별 노드 검출
+  ② fetch_subgraphs: 각 검출 노드를 root 로 subgraph tool 호출 (주변 맥락 확보)
+  ③ propose        : 검출 정보 + 서브그래프를 컨텍스트로 주입해 수정안 제시
+  ④ validate / write
+
+subgraph·node-resolution 은 agent-platform/shared 공통 tool 을 통해 호출한다.
+"""
+import datetime
 import json
 import os
 from pathlib import Path
-from typing import TypedDict, Any
+from typing import Any, TypedDict
 
-import httpx
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
 
+from shared.kg_analytics_tools import detect_node_anomalies, fetch_subgraph
 
-CONTENTS_MANAGER_URL = os.getenv("CONTENTS_MANAGER_URL", "http://localhost:8010")
 SKILL_PATH = Path(__file__).parent.parent.parent / "skills" / "structure_skill.md"
 
 
@@ -22,10 +32,12 @@ def _load_skill() -> str:
 
 class StructureState(TypedDict):
     subject_id: str
-    node_types: list[str] | None
-    depth: int | None
-    root_node_id: str | None
-    subgraph: dict
+    top_k: int
+    min_students: int
+    min_successors: int
+    depth: int
+    detected_nodes: list[dict]
+    subgraphs: dict
     proposals: list[dict]
     validated_proposals: list[dict]
     output_path: str
@@ -40,16 +52,11 @@ class NodeSuggestion(BaseModel):
     description: str = ""
 
 
-class EdgeSuggestion(BaseModel):
-    source_id: str
-    target_id: str
-    relation_type: str
-
-
 class Proposal(BaseModel):
-    type: str = Field(description="split|merge|relink|reorder|add_edge|remove_edge")
+    type: str = Field(description="split|merge|relink|reorder|add_edge|remove_edge|redefine")
     target_node_id: str
     target_node_name: str = ""
+    detection: str = Field(default="", description="anomaly|degenerate — 검출 근거 유형")
     reason: str
     suggestion: dict[str, Any] = Field(default_factory=dict)
     ontology_valid: bool = True
@@ -66,39 +73,87 @@ class ValidationOutput(BaseModel):
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 
-def fetch_subgraph(state: StructureState) -> dict:
-    params: dict[str, Any] = {}
-    if state.get("node_types"):
-        params["node_types"] = ",".join(state["node_types"])
-    if state.get("depth"):
-        params["depth"] = state["depth"]
-    if state.get("root_node_id"):
-        params["root_node_id"] = state["root_node_id"]
+def detect_targets(state: StructureState) -> dict:
+    """① node-resolution tool 로 이상/무변별 노드 검출."""
+    data = detect_node_anomalies.invoke({
+        "subject_id": state["subject_id"],
+        "top_k": state.get("top_k", 50),
+        "min_students": state.get("min_students", 10),
+        "min_successors": state.get("min_successors", 3),
+    })
 
-    resp = httpx.get(
-        f"{CONTENTS_MANAGER_URL}/kg/analytics/subgraph/{state['subject_id']}",
-        params=params,
-        timeout=30,
+    anomalies = data.get("anomalies", [])
+    degenerate = data.get("degenerate_nodes", [])
+    detected = [
+        {"node_id": a["node_id"], "name": a.get("name", ""), "detection": "anomaly", "info": a}
+        for a in anomalies
+    ] + [
+        {"node_id": d["node_id"], "name": d.get("name", ""), "detection": "degenerate", "info": d}
+        for d in degenerate
+    ]
+    print(
+        f"[T_STRUCTURE] 검출 노드 {len(detected)}개 "
+        f"(이상 {len(anomalies)} / 무변별 {len(degenerate)}) — subject={state['subject_id']}"
     )
-    resp.raise_for_status()
-    return {"subgraph": resp.json()}
+    return {"detected_nodes": detected}
 
 
-def review(state: StructureState) -> dict:
-    subgraph = state["subgraph"]
+def fetch_subgraphs(state: StructureState) -> dict:
+    """② 검출 노드를 root 로 subgraph tool 호출 — 주변 맥락 확보."""
+    subgraphs: dict = {}
+    depth = state.get("depth") or 1
+    for node in state["detected_nodes"]:
+        nid = node["node_id"]
+        sg = fetch_subgraph.invoke({
+            "subject_id": state["subject_id"],
+            "root_node_id": nid,
+            "depth": depth,
+        })
+        subgraphs[nid] = sg
+    print(f"[T_STRUCTURE] 서브그래프 {len(subgraphs)}개 도출 (depth={depth})")
+    return {"subgraphs": subgraphs}
+
+
+def propose(state: StructureState) -> dict:
+    """③ 검출 정보 + 서브그래프를 컨텍스트로 주입해 수정안 제시."""
+    detected = state["detected_nodes"]
+    if not detected:
+        print("[T_STRUCTURE] 검출 노드 없음 — 종료")
+        return {"proposals": []}
+
+    subgraphs = state["subgraphs"]
+    context_blocks = []
+    for node in detected:
+        sg = subgraphs.get(node["node_id"], {})
+        context_blocks.append({
+            "detected_node": {
+                "node_id": node["node_id"],
+                "name": node["name"],
+                "detection": node["detection"],
+                "info": node["info"],
+            },
+            "subgraph": {
+                "node_count": sg.get("node_count", 0),
+                "edge_count": sg.get("edge_count", 0),
+                "nodes": sg.get("nodes", []),
+                "edges": sg.get("edges", []),
+                "metrics": sg.get("metrics", {}),
+            },
+        })
+
     llm = ChatOpenAI(model="claude-sonnet-4-6", temperature=0).with_structured_output(ReviewOutput)
-
     prompt = f"""{_load_skill()}
 
-## Subgraph to Review
+## Detected Nodes with Local Subgraph Context
 
-Nodes ({subgraph['node_count']}):
-{json.dumps(subgraph['nodes'], ensure_ascii=False, indent=2)}
+각 항목은 통계적으로 검출된 노드와 그 노드를 중심으로 한 주변 서브그래프다.
+- detection=anomaly: 후행 노드 간 숙련도 상관이 낮음 → 개념 범위 과대(split 후보)
+- detection=degenerate: 전 학생 정답/오답으로 변별력 없음 → 개념·문제 재정의(redefine) 후보
 
-Edges ({subgraph['edge_count']}):
-{json.dumps(subgraph['edges'], ensure_ascii=False, indent=2)}
+서브그래프의 metrics(차수·후행 수·고립/리프 노드·depth 분포)를 활용해
+각 노드에 대한 구체적 재정의(수정) 방안을 제시하라.
 
-Review the subgraph and propose improvements. Focus on the most impactful changes.
+{json.dumps(context_blocks, ensure_ascii=False, indent=2)}
 """
     result: ReviewOutput = llm.invoke(prompt)
     return {"proposals": [p.model_dump() for p in result.proposals]}
@@ -110,7 +165,6 @@ def validate(state: StructureState) -> dict:
         return {"validated_proposals": []}
 
     llm = ChatOpenAI(model="claude-sonnet-4-6", temperature=0).with_structured_output(ValidationOutput)
-
     prompt = f"""{_load_skill()}
 
 ## Validation Task
@@ -126,7 +180,6 @@ Proposals:
 
 
 def write(state: StructureState) -> dict:
-    import datetime
     output_dir = Path("logs")
     output_dir.mkdir(exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
@@ -136,6 +189,7 @@ def write(state: StructureState) -> dict:
         "subject_id": state["subject_id"],
         "trigger": "T_STRUCTURE",
         "generated_at": ts,
+        "detected_count": len(state["detected_nodes"]),
         "proposal_count": len(state["validated_proposals"]),
         "proposals": state["validated_proposals"],
     }
@@ -146,16 +200,27 @@ def write(state: StructureState) -> dict:
 
 # ── Graph ─────────────────────────────────────────────────────────────────────
 
+def _route_entry(state: StructureState) -> str:
+    """detected_nodes가 외부에서 주입되면 검출 단계를 건너뛴다."""
+    return "fetch_subgraphs" if state.get("detected_nodes") else "detect_targets"
+
+
 def build_structure_graph() -> StateGraph:
     g = StateGraph(StructureState)
-    g.add_node("fetch_subgraph", fetch_subgraph)
-    g.add_node("review", review)
+    g.add_node("detect_targets", detect_targets)
+    g.add_node("fetch_subgraphs", fetch_subgraphs)
+    g.add_node("propose", propose)
     g.add_node("validate", validate)
     g.add_node("write", write)
 
-    g.add_edge(START, "fetch_subgraph")
-    g.add_edge("fetch_subgraph", "review")
-    g.add_edge("review", "validate")
+    # 외부 검출 노드 주입 시 detect_targets 스킵
+    g.add_conditional_edges(START, _route_entry, {
+        "detect_targets": "detect_targets",
+        "fetch_subgraphs": "fetch_subgraphs",
+    })
+    g.add_edge("detect_targets", "fetch_subgraphs")
+    g.add_edge("fetch_subgraphs", "propose")
+    g.add_edge("propose", "validate")
     g.add_edge("validate", "write")
     g.add_edge("write", END)
 
