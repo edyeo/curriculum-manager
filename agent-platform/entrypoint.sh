@@ -21,6 +21,9 @@ case "$AGENT" in
   virtual-student)
     exec uvicorn apps.virtual_student.main:app --host 0.0.0.0 --port ${PORT:-8006}
     ;;
+  kg-refiner)
+    exec uvicorn apps.kg_refiner.main:app --host 0.0.0.0 --port ${PORT:-8007}
+    ;;
   *)
     echo "Unknown AGENT: $AGENT"
     exit 1

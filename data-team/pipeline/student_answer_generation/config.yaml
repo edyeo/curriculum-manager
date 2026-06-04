@@ -19,7 +19,9 @@ simulation:
     - "MCQ"
     - "OX"
     - "short_answer"
-  request_timeout: 60                # Virtual Student API 요청 타임아웃(초)
+  request_timeout: 120               # Virtual Student API 요청 타임아웃(초, 청크 단위)
+  chunk_size: 10                     # 한 요청에 보낼 문제 수 (학생당 분할)
+  concurrency: 5                     # 동시 처리할 요청 수
 
 persona:
   mastery_to_knowledge_level: true   # avg(node_mastery) → prior_knowledge_level 매핑

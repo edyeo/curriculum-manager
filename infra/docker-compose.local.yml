@@ -220,6 +220,44 @@ services:
       timeout: 5s
       retries: 3
 
+  # KG Refiner Agent (CLI 도구 — docker compose run으로 실행)
+  # 사용법:
+  #   docker compose -f docker-compose.local.yml run --rm kg-refiner structure --subject-id <id>
+  #   docker compose -f docker-compose.local.yml run --rm kg-refiner student   --subject-id <id>
+  kg-refiner:
+    build:
+      context: ../agent-platform
+      dockerfile: Dockerfile
+      args:
+        AGENT: kg-refiner
+    container_name: kg-refiner
+    environment:
+      AGENT: kg-refiner
+      PORT: 8007
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      CONTENTS_MANAGER_URL: http://contents-manager-backend:8010
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-curriculum_password}
+      STUDENT_PLATFORM_DB_URL: sqlite:////app/db/student_platform.db
+      PYTHONPATH: /app
+    ports:
+      - "8007:8007"
+    volumes:
+      - ../agent-platform/agents/kg-refiner:/app/agents/kg-refiner
+      - ../agent-platform/apps/kg_refiner:/app/apps/kg_refiner
+      - ../agent-platform/shared:/app/shared
+      - student_db:/app/db
+    depends_on:
+      - contents-manager-backend
+      - neo4j
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # API Gateway
   gateway:
     build:
@@ -268,6 +306,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
       ONTOLOGY_PATH: /app/data/ontology.yaml
+      STUDENT_PLATFORM_DB_URL: sqlite:////app/student_db/student_platform.db
     ports:
       - "8010:8010"
     depends_on:
@@ -277,6 +316,7 @@ services:
       - ../edges.json:/app/data/edges.json
       - ../agent-platform/shared/ontology.yaml:/app/data/ontology.yaml:ro
       - cm_db:/app/cm_db
+      - student_db:/app/student_db:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/api/health"]
       interval: 10s

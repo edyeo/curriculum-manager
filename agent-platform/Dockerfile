@@ -20,6 +20,7 @@ RUN touch /app/agents/__init__.py && \
     ln -sf /app/agents/mental-model-manager /app/agents/mental_model_manager && \
     ln -sf /app/agents/question-generator /app/agents/question_generator && \
     ln -sf /app/agents/virtual-student /app/agents/virtual_student && \
+    ln -sf /app/agents/kg-refiner /app/agents/kg_refiner && \
     chmod +x /app/entrypoint.sh
 
 # 기본값: curriculum-manager

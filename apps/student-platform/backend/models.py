@@ -137,10 +137,23 @@ class VirtualStudent(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class VirtualStudySession(Base):
-    """가상 학생 합성 답변 이력 — study_sessions와 동일 스키마."""
-    __tablename__ = "virtual_study_sessions"
+class VirtualStudentStudySessionInfo(Base):
+    """가상 학생 학습 세션 단위 mastery 변화 기록."""
+    __tablename__ = "virtual_student_study_session_info"
+    session_id = Column(String, primary_key=True)
+    student_id = Column(Integer, ForeignKey("virtual_students.id"), nullable=False)
+    node_id = Column(String, nullable=False)
+    subject_id = Column(String, nullable=False)
+    mastery_before = Column(Float, nullable=True)
+    mastery_after = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class VirtualStudentStudyLog(Base):
+    """가상 학생 문항별 답변 이력."""
+    __tablename__ = "virtual_student_study_log"
     id = Column(Integer, primary_key=True)
+    session_id = Column(String, ForeignKey("virtual_student_study_session_info.session_id"), nullable=True)
     student_id = Column(Integer, ForeignKey("virtual_students.id"), nullable=False)
     question_id = Column(String, nullable=False)
     node_id = Column(String, nullable=False)
