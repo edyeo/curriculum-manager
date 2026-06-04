@@ -1,7 +1,7 @@
 """virtual_student_study_session_info 추가, virtual_study_sessions → virtual_student_study_log 리네임
 
-Revision ID: 003
-Revises: 002
+Revision ID: 004
+Revises: 003
 Create Date: 2026-06-03
 
 """
@@ -10,8 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "003"
-down_revision: Union[str, None] = "002"
+revision: str = "004"
+down_revision: Union[str, None] = "003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -32,6 +32,7 @@ def upgrade() -> None:
     )
 
     # virtual_study_sessions → virtual_student_study_log 리네임
+    # (003에서 추가된 run_id 컬럼은 rename/batch 재생성 시 그대로 보존된다)
     op.rename_table("virtual_study_sessions", "virtual_student_study_log")
 
     # session_id 컬럼 추가 (SQLite batch mode)

@@ -427,6 +427,25 @@ services:
       timeout: 5s
       retries: 3
 
+  # BKT Serving API
+  bkt-serving:
+    build:
+      context: ../ml-team/bkt
+      dockerfile: Dockerfile
+    container_name: bkt-serving
+    environment:
+      PORT: 8007
+      BKT_ARTIFACT_DIR: /app/artifacts
+    ports:
+      - "8007:8007"
+    volumes:
+      - bkt_artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # Neo4j Graph Database
   neo4j:
     image: neo4j:5-community
@@ -460,6 +479,8 @@ volumes:
   virtual_student_db:
     driver: local
   neo4j_data:
+    driver: local
+  bkt_artifacts:
     driver: local
 
 networks:

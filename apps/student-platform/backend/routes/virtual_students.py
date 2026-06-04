@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import VirtualStudent
+from models import VirtualStudent, VirtualStudySession
 
 router = APIRouter(prefix="/virtual-students", tags=["virtual-students"])
 
@@ -33,6 +33,33 @@ def sync_virtual_student(data: VirtualStudentSync, db: Session = Depends(get_db)
     db.commit()
     db.refresh(vs)
     return {"id": vs.id, "vs_api_id": vs.vs_api_id, "synced": True}
+
+
+@router.get("/study-sessions")
+def list_virtual_study_sessions(subject_id: str | None = None, db: Session = Depends(get_db)):
+    q = (
+        db.query(VirtualStudySession, VirtualStudent)
+        .join(VirtualStudent, VirtualStudySession.student_id == VirtualStudent.id)
+    )
+    if subject_id:
+        q = q.filter(VirtualStudySession.subject_id == subject_id)
+    rows = q.order_by(VirtualStudySession.created_at.desc()).limit(500).all()
+    return [
+        {
+            "id": sess.id,
+            "student_id": vs.vs_api_id,
+            "student_name": vs.name,
+            "question_id": sess.question_id,
+            "node_id": sess.node_id,
+            "subject_id": sess.subject_id,
+            "user_answer": sess.user_answer,
+            "is_correct": sess.is_correct,
+            "score": sess.score,
+            "feedback": sess.feedback,
+            "created_at": sess.created_at.isoformat() if sess.created_at else None,
+        }
+        for sess, vs in rows
+    ]
 
 
 @router.get("")

@@ -9,6 +9,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -86,6 +87,7 @@ async def _process_chunk(
     student: dict,
     questions: list,
     subject_id: str,
+    run_id: str,
     label: str,
 ) -> tuple[list[dict], bool]:
     """단일 (학생 × 청크) 요청 처리. (answers, success) 반환."""
@@ -122,6 +124,7 @@ async def _process_chunk(
             "question_id": q["id"],
             "node_id": q["entity_id"],
             "subject_id": subject_id,
+            "run_id": run_id,
             "question_text": q["question_text"],
             "question_type": q["question_type"],
             "correct_answer": q.get("correct_answer", ""),
@@ -135,7 +138,7 @@ async def _process_chunk(
     return rows, True
 
 
-async def _generate_async(targets: list, subject_id: str, cfg: dict) -> tuple[list[dict], dict]:
+async def _generate_async(targets: list, subject_id: str, cfg: dict, run_id: str) -> tuple[list[dict], dict]:
     vs_url = cfg["api"]["virtual_student_url"]
     timeout = cfg["simulation"].get("request_timeout", 120)
     chunk_size = cfg["simulation"].get("chunk_size", 10)
@@ -159,7 +162,7 @@ async def _generate_async(targets: list, subject_id: str, cfg: dict) -> tuple[li
 
     async with httpx.AsyncClient(base_url=vs_url, timeout=timeout) as client:
         coros = [
-            _process_chunk(client, sem, student, chunk, subject_id, label)
+            _process_chunk(client, sem, student, chunk, subject_id, run_id, label)
             for student, chunk, label in work
         ]
         results = await asyncio.gather(*coros)
@@ -175,16 +178,20 @@ async def _generate_async(targets: list, subject_id: str, cfg: dict) -> tuple[li
     return all_answers, stats
 
 
-def generate_and_dump(targets: list, subject_id: str, cfg: dict) -> Path:
-    output_dir = Path(__file__).parent / cfg.get("output_dir", "../../data/output")
+def generate_and_dump(targets: list, subject_id: str, cfg: dict, run_id: str | None = None) -> Path:
+    output_dir = Path(__file__).parent / cfg.get("output_dir", "../../../.data/student_answer_generation")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    all_answers, stats = asyncio.run(_generate_async(targets, subject_id, cfg))
+    if run_id is None:
+        run_id = str(uuid.uuid4())
+
+    all_answers, stats = asyncio.run(_generate_async(targets, subject_id, cfg, run_id))
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     out_file = output_dir / f"student_answers_{subject_id[:8]}_{ts}.json"
     out_file.write_text(json.dumps({
         "subject_id": subject_id,
+        "run_id": run_id,
         "generated_at": ts,
         "stats": stats,
         "answers": all_answers,
@@ -241,6 +248,7 @@ def load_to_db(cfg: dict, dump_file: Path) -> dict:
             {
                 "student_id": student_id,
                 "session_id": session_id,
+                "run_id": a.get("run_id"),
                 "question_id": a["question_id"],
                 "node_id": node_id,
                 "subject_id": subject_id,

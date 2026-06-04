@@ -159,17 +159,17 @@ def update_answer_session_mastery_after(
 
 
 def insert_study_sessions(engine: Engine, rows: Sequence[dict]) -> int:
-    """virtual_student_study_log 벌크 INSERT (session_id 포함)."""
+    """virtual_student_study_log 벌크 INSERT (session_id·run_id 포함)."""
     if not rows:
         return 0
     with engine.begin() as conn:
         conn.execute(
             text("""
                 INSERT INTO virtual_student_study_log
-                    (student_id, session_id, question_id, node_id, subject_id, user_answer,
+                    (student_id, session_id, run_id, question_id, node_id, subject_id, user_answer,
                      is_correct, score, feedback, time_taken_seconds, created_at)
                 VALUES
-                    (:student_id, :session_id, :question_id, :node_id, :subject_id, :user_answer,
+                    (:student_id, :session_id, :run_id, :question_id, :node_id, :subject_id, :user_answer,
                      :is_correct, :score, :feedback, :time_taken_seconds, :created_at)
             """),
             list(rows),

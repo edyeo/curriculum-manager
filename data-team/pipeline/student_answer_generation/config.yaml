@@ -1,16 +1,16 @@
 # 가상 학생 답변 합성 데이터 파이프라인 설정
 
 databases:
-  # docker cp로 추출한 로컬 복사본
-  student_platform: "sqlite:///./sp.db"
-  contents_manager: "sqlite:///./cm.db"
-  virtual_student: "sqlite:///./vs.db"
+  # SQLite (로컬 개발) 또는 PostgreSQL (운영) URL
+  student_platform: "sqlite:///student_platform.db"
+  contents_manager: "sqlite:///contents_manager.db"
+  virtual_student: "sqlite:///virtual_students.db"
 
 api:
   virtual_student_url: "http://localhost:8030"
 
 # 중간 산출물 저장 경로
-output_dir: "../../data/output"
+output_dir: "../../../.data/student_answer_generation"
 
 simulation:
   max_students: 20                   # 한 번 실행 최대 학생 수
